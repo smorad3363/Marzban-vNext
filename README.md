@@ -108,11 +108,21 @@ Marzban is user-friendly, feature-rich and reliable. It lets you to create diffe
 
 # Installation guide
 
-MySQL 8 is the only supported database. Install with:
+MySQL is the only supported database. This command installs the latest published release without a GitHub token:
 
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 ```
+
+The installer uses the exact release image when it is publicly readable. If GHCR denies anonymous access, it automatically builds the same tagged release from public source. No PAT is required.
+
+Update an existing installation to the latest published release with:
+
+```bash
+marzban update
+```
+
+Use `marzban version` after installation or update to verify CLI, application, Docker image, digest, and MySQL version integrity.
 
 Once the installation is complete:
 

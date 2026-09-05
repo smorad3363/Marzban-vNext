@@ -8,6 +8,9 @@ help_output=$(TERM=xterm bash -c "$(cat scripts/marzban.sh)" @ help)
 grep -q "Usage:" <<< "$help_output"
 grep -q "install" <<< "$help_output"
 
+update_help=$(TERM=xterm bash -c "$(cat scripts/marzban.sh)" @ update --help)
+grep -q "Usage: marzban update" <<< "$update_help"
+
 resolved="$CLI_RELEASE_VERSION"
 
 docker() {
