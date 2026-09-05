@@ -10,7 +10,7 @@ def test_release_version_and_install_rollback_contract():
     assert version == "5.2.0"
     assert f'__version__ = "{version}"' in app
     assert f'CLI_RELEASE_VERSION="v{version}"' in installer
-    assert f"ghcr.io/smorad3363/marzban:v{version}" in Path("docker-compose.yml").read_text()
+    assert f"ghcr.io/smorad3363/marzban-vnext:v{version}" in Path("docker-compose.yml").read_text()
     assert 'MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban-vNext}"' in installer
     assert 'MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-vnext-ui}"' in installer
     assert "Application downgrade refused" in installer

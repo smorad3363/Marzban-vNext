@@ -45,7 +45,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Refuse overwriting an existing release image
         env:
-          IMAGE: ghcr.io/smorad3363/marzban:${{ inputs.image_tag }}
+          IMAGE: ghcr.io/smorad3363/marzban-vnext:${{ inputs.image_tag }}
         run: |
           if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
             echo 'Release image already exists; verify its digest instead of overwriting.' >&2
@@ -58,8 +58,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/smorad3363/marzban:${{ inputs.image_tag }}
-            ghcr.io/smorad3363/marzban:sha-${{ inputs.git_ref }}
+            ghcr.io/smorad3363/marzban-vnext:${{ inputs.image_tag }}
+            ghcr.io/smorad3363/marzban-vnext:sha-${{ inputs.git_ref }}
           labels: |
             org.opencontainers.image.source=https://github.com/smorad3363/Marzban-vNext
             org.opencontainers.image.revision=${{ inputs.git_ref }}

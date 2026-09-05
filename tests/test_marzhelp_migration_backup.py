@@ -136,7 +136,7 @@ def test_installer_targets_release_image_and_pinned_mysql_image():
 
     assert 'MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban-vNext}"' in installer
     assert 'MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-vnext-ui}"' in installer
-    assert 'MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban}"' in installer
+    assert 'MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban-vnext}"' in installer
     assert 'database_type="mysql"' in installer
     assert "This Marzban build supports MySQL only" in installer
     assert 'marzban_version="$CLI_RELEASE_VERSION"' in installer
