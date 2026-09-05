@@ -278,7 +278,8 @@ ensure_marzban_image() {
     if docker image inspect "$image" >/dev/null 2>&1; then
         return 0
     fi
-    if docker pull "$image"; then
+    if docker pull "$image" >/dev/null 2>&1; then
+        colorized_echo green "Downloaded ${image}."
         return 0
     fi
     if ! is_release_version "$requested_version"; then
