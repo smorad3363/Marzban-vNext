@@ -794,15 +794,11 @@ def create_managed_admin(
                 parent=actor,
                 child_settings=settings,
                 mode=(
-                    admin_hierarchy.FREE_FORM
-                    if requested_mode == BillingMode.USED_TRAFFIC
-                    else admin_hierarchy.PLAN_ONLY
-                    if requested_mode in {BillingMode.ALLOCATED_TRAFFIC, BillingMode.USER_CREDIT}
+                    admin_hierarchy.PLAN_ONLY
+                    if requested_mode == BillingMode.USER_CREDIT
                     else new_admin.user_creation_mode
                 ),
-                can_manage_plans=(
-                    False if requested_mode == BillingMode.USED_TRAFFIC else new_admin.can_manage_plans
-                ),
+                can_manage_plans=False,
             )
             if new_admin.initial_money_credit_toman:
                 initial_money_result, _ = money_billing.transfer_money(
@@ -1096,10 +1092,9 @@ def modify_managed_admin(
                 parent=actor,
                 child_price_per_gib_toman=settings.used_traffic_price_per_gib_toman,
             )
-            requested_mode = admin_hierarchy.FREE_FORM
-            requested_plan_management = False
-        elif commercial_mode in {BillingMode.ALLOCATED_TRAFFIC, BillingMode.USER_CREDIT}:
+        if commercial_mode == BillingMode.USER_CREDIT:
             requested_mode = admin_hierarchy.PLAN_ONLY
+        requested_plan_management = False
         current_mode = (
             db.query(AdminUserCreationMode.code)
             .filter(AdminUserCreationMode.id == current_settings.user_creation_mode_id)

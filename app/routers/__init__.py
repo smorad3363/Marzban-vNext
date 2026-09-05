@@ -13,6 +13,7 @@ from . import (
     home,
     device_limit,
     branding,
+    backup,
 )
 
 api_router = APIRouter()
@@ -31,6 +32,7 @@ routers = [
     home.router,
     device_limit.router,
     branding.router,
+    backup.router,
 ]
 
 for router in routers:

@@ -1,6 +1,10 @@
 import base64
+import hashlib
+import json
+import zipfile
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -8,7 +12,8 @@ from app.db.base import Base
 from app.db.models import TelegramOutbox
 from app.utils.stage11_operations import (decrypt_backup, dispatch_outbox,
                                           encrypt_backup, enqueue_outbox, now,
-                                          purge_outbox)
+                                          purge_outbox, telegram_parts,
+                                          validate_panel_backup)
 
 
 def session():
@@ -93,3 +98,27 @@ def test_authenticated_encryption_round_trip_and_tamper_detection(tmp_path):
         pass
     else:
         raise AssertionError("tampered backup decrypted")
+
+
+def test_panel_archive_manifest_checksum_and_transport_split(tmp_path):
+    archive = tmp_path / "proof.panel-backup.zip"
+    sql = b"CREATE TABLE proof (id INT);"
+    manifest = {
+        "format": "panel-backup-v1",
+        "database_engine": "mysql",
+        "files": {"database.sql": hashlib.sha256(sql).hexdigest()},
+    }
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("database.sql", sql)
+        bundle.writestr("manifest.json", json.dumps(manifest))
+    assert validate_panel_backup(archive)["database_engine"] == "mysql"
+    parts = telegram_parts(archive, max_bytes=20)
+    assert len(parts) > 1
+    assert b"".join(part.read_bytes() for part in parts) == archive.read_bytes()
+
+    manifest["files"]["database.sql"] = "0" * 64
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("database.sql", sql)
+        bundle.writestr("manifest.json", json.dumps(manifest))
+    with pytest.raises(ValueError, match="backup_checksum_mismatch"):
+        validate_panel_backup(archive)

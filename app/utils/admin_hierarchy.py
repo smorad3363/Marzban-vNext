@@ -47,9 +47,32 @@ SUSPENDED = "SUSPENDED"
 DISABLED = "DISABLED"
 ACCOUNT_STATUS_IDS = {ACTIVE: 1, SUSPENDED: 2, DISABLED: 3}
 
-FREE_FORM = "FREE_FORM"
+FREE_FORM = "FREE_FORM"  # legacy API alias for FORM_ONLY
+FORM_ONLY = "FORM_ONLY"
 PLAN_ONLY = "PLAN_ONLY"
-USER_CREATION_MODE_IDS = {FREE_FORM: 1, PLAN_ONLY: 2}
+BOTH = "BOTH"
+USER_CREATION_MODE_IDS = {FREE_FORM: 1, FORM_ONLY: 1, PLAN_ONLY: 2, BOTH: 3}
+
+
+def creation_mode_capabilities(settings: MarzhelpAdminSettings | None) -> set[str]:
+    mode_id = settings.user_creation_mode_id if settings is not None else USER_CREATION_MODE_IDS[PLAN_ONLY]
+    return creation_mode_capabilities_by_id(mode_id)
+
+
+def creation_mode_capabilities_by_id(mode_id: int) -> set[str]:
+    if mode_id == USER_CREATION_MODE_IDS[FORM_ONLY]:
+        return {FORM_ONLY}
+    if mode_id == USER_CREATION_MODE_IDS[BOTH]:
+        return {FORM_ONLY, PLAN_ONLY}
+    return {PLAN_ONLY}
+
+
+def allows_form_creation(settings: MarzhelpAdminSettings | None) -> bool:
+    return FORM_ONLY in creation_mode_capabilities(settings)
+
+
+def allows_plan_creation(settings: MarzhelpAdminSettings | None) -> bool:
+    return PLAN_ONLY in creation_mode_capabilities(settings)
 
 ALLOWED_API_SCOPES = frozenset(
     {
@@ -678,25 +701,20 @@ def configure_child_user_creation_access(
 ) -> None:
     if mode not in USER_CREATION_MODE_IDS:
         raise HierarchyError("invalid_creation_mode", "Unknown user creation mode")
+    if admin_billing.billing_mode(child_settings) == admin_billing.BillingMode.USER_CREDIT and mode != PLAN_ONLY:
+        raise HierarchyError("user_credit_plan_only", "USER_CREDIT administrators are always Plan Only")
+    if can_manage_plans:
+        raise HierarchyError("plan_management_owner_only", "Plan management is Owner-only")
     if not is_owner(db, actor):
         parent_settings = db.get(MarzhelpAdminSettings, parent.id)
         if parent_settings is None:
             raise HierarchyError("parent_policy_missing", "Parent policy is missing")
-        parent_mode = (
-            db.query(AdminUserCreationMode.code)
-            .filter(AdminUserCreationMode.id == parent_settings.user_creation_mode_id)
-            .scalar()
-            or PLAN_ONLY
-        )
-        if mode == FREE_FORM and parent_mode != FREE_FORM:
+        requested = creation_mode_capabilities_by_id(USER_CREATION_MODE_IDS[mode])
+        parent_capabilities = creation_mode_capabilities(parent_settings)
+        if not requested.issubset(parent_capabilities):
             raise HierarchyError(
                 "child_creation_mode_too_powerful",
-                "A Plan-only parent cannot grant free-form user creation",
-            )
-        if can_manage_plans and not parent_settings.can_manage_plans:
-            raise HierarchyError(
-                "plan_management_delegation_forbidden",
-                "Parent cannot delegate Plan management",
+                "Parent cannot grant a user creation path it does not have",
             )
     child_settings.user_creation_mode_id = USER_CREATION_MODE_IDS[mode]
     child_settings.can_manage_plans = bool(can_manage_plans)

@@ -45,10 +45,7 @@ from app.utils import admin_billing, admin_hierarchy, marzhelp_policy, money_bil
 
 
 def _can_manage_plans(db: Session, actor: Admin) -> bool:
-    if admin_hierarchy.is_owner(db, actor):
-        return True
-    settings = db.get(MarzhelpAdminSettings, actor.id)
-    return bool(settings and settings.can_manage_plans)
+    return admin_hierarchy.is_owner(db, actor)
 
 
 def effective_categories_query(db: Session, actor: Admin):
@@ -359,12 +356,15 @@ def _validate_version(db: Session, actor: Admin, version: PlanVersionInput) -> N
     if not settings.all_user_limits and version.concurrent_user_limit is not None:
         if version.concurrent_user_limit not in settings.allowed_user_limits:
             raise admin_hierarchy.HierarchyError("user_limit_forbidden", "Plan device limit is not allowed")
-    _validate_network_scope(
-        db,
-        settings,
-        set(version.inbounds),
-        {tag: set(host_ids) for tag, host_ids in version.hosts.items()},
-    )
+    # Legacy versions keep their immutable network snapshot for rollback. New
+    # commercial Plans omit it because Access Groups own network access.
+    if version.inbounds or version.hosts:
+        _validate_network_scope(
+            db,
+            settings,
+            set(version.inbounds),
+            {tag: set(host_ids) for tag, host_ids in version.hosts.items()},
+        )
     mode = admin_billing.billing_mode(settings)
     available = admin_hierarchy.available_credit(db, settings)
     if mode == admin_billing.BillingMode.SEAT_CREDIT:
@@ -411,6 +411,8 @@ def _validate_access_network_targets(
             .all()
         )
     if not target_ids:
+        return
+    if not version.inbounds:
         return
     settings_rows = (
         db.query(MarzhelpAdminSettings)
@@ -842,6 +844,10 @@ def _apply_plan_network_to_user(
 
 
 def subscription_host_scope(db: Session, user: User) -> dict[str, set[int]] | None:
+    if user.access_group_id is not None:
+        from app.utils import access_groups
+
+        return access_groups.host_scope(db, user)
     assignment = (
         db.query(UserPlanAssignment)
         .filter(UserPlanAssignment.user_id == user.id)
@@ -1035,6 +1041,7 @@ def create_user_from_plan(
     status: str,
     note: str | None,
     idempotency_key: str,
+    access_group_id: int | None = None,
 ) -> tuple[User, UserPlanAssignment, bool]:
     username = marzhelp_policy.customer_username(db, actor, username)
     replay = _assignment_replay(
@@ -1051,7 +1058,10 @@ def create_user_from_plan(
         raise admin_hierarchy.HierarchyError("plan_access_forbidden", "Plan is unavailable in this scope")
     settings = db.get(MarzhelpAdminSettings, actor.id)
     if settings and settings.user_creation_mode_id not in (1, 2):
-        raise admin_hierarchy.HierarchyError("invalid_creation_mode", "Unknown user creation mode")
+        if settings.user_creation_mode_id != admin_hierarchy.USER_CREATION_MODE_IDS[admin_hierarchy.BOTH]:
+            raise admin_hierarchy.HierarchyError("invalid_creation_mode", "Unknown user creation mode")
+    if not admin_hierarchy.is_owner(db, actor) and not admin_hierarchy.allows_plan_creation(settings):
+        raise admin_hierarchy.HierarchyError("form_only", "This administrator can create users only with Form")
     plan = db.get(AdminUserPlan, plan_id)
     version = db.get(AdminUserPlanVersion, plan.current_version_id)
     if settings is None:
@@ -1085,7 +1095,15 @@ def create_user_from_plan(
             )
         db.expire(settings, ["trial_quota", "trials_used"])
     version_inbounds, version_hosts = _version_network_scope(db, version.id)
-    _validate_network_scope(db, settings, version_inbounds, version_hosts)
+    if access_group_id is not None:
+        from app.utils import access_groups
+
+        group = db.get(access_groups.AccessGroup, access_group_id)
+        if group is None or group.archived_at is not None:
+            raise admin_hierarchy.HierarchyError("access_group_unavailable", "Access Group is unavailable")
+        version_inbounds, version_hosts, _ = access_groups._scope(db, access_group_id)
+    else:
+        _validate_network_scope(db, settings, version_inbounds, version_hosts)
     version._inbound_tags = sorted(version_inbounds)
     payload = _plan_user_payload(plan, version, username, status, note)
     try:
@@ -1096,6 +1114,8 @@ def create_user_from_plan(
             commit=False,
             apply_namespace=False,
         )
+        if access_group_id is not None:
+            access_groups.apply_to_user(db, user, access_group_id)
         assignment = UserPlanAssignment(
             user_id=user.id,
             plan_id=plan.id,
@@ -1143,6 +1163,7 @@ def renew_user_from_plan(
     user: User,
     plan_id: int,
     idempotency_key: str,
+    access_group_id: int | None = None,
 ) -> tuple[User, UserPlanAssignment, bool]:
     replay = _assignment_replay(
         db,
@@ -1207,7 +1228,14 @@ def renew_user_from_plan(
     ):
         raise admin_hierarchy.HierarchyError("user_limit_forbidden", "Plan device limit is not allowed")
     version_inbounds, version_hosts = _version_network_scope(db, version.id)
-    _validate_network_scope(db, settings, version_inbounds, version_hosts)
+    if access_group_id is not None:
+        from app.utils import access_groups
+
+        group = db.get(access_groups.AccessGroup, access_group_id)
+        if group is None or group.archived_at is not None:
+            raise admin_hierarchy.HierarchyError("access_group_unavailable", "Access Group is unavailable")
+    elif user.access_group_id is None:
+        _validate_network_scope(db, settings, version_inbounds, version_hosts)
     available = admin_hierarchy.available_credit(db, settings)
     seat_cost = 0
     if mode == admin_billing.BillingMode.SEAT_CREDIT:
@@ -1232,7 +1260,10 @@ def renew_user_from_plan(
     user.status = UserStatus.active
     user.concurrent_user_limit = version.concurrent_user_limit
     user.data_limit_reset_strategy = UserDataLimitResetStrategy(version.reset_strategy)
-    _apply_plan_network_to_user(db, user, version_inbounds)
+    if access_group_id is not None:
+        access_groups.apply_to_user(db, user, access_group_id)
+    elif user.access_group_id is None:
+        _apply_plan_network_to_user(db, user, version_inbounds)
     sync_device_slots(db, user)
     now_ts = int(datetime.now(timezone.utc).timestamp())
     user.expire = max(now_ts, int(user.expire or 0)) + version.duration_days * 86400

@@ -28,7 +28,16 @@ from app.models.user import (
     UsersUsagesResponse,
     UserUsagesResponse,
 )
-from app.utils import admin_billing, admin_hierarchy, admin_plans, marzhelp_policy, report, responses
+from app.utils import (
+    admin_billing,
+    admin_hierarchy,
+    admin_plans,
+    marzhelp_policy,
+    money_billing,
+    owner_pricing,
+    report,
+    responses,
+)
 from app.utils.audit import (
     AuditLogService,
     changed_fields,
@@ -67,16 +76,13 @@ def add_user(
     # TODO expire should be datetime instead of timestamp
 
     dbadmin = crud.get_admin(db, admin.username)
+    form_cost_toman = 0
     if dbadmin is not None and admin_hierarchy.hierarchy_enabled(db):
         settings = db.get(MarzhelpAdminSettings, dbadmin.id)
         billing_mode = admin_billing.billing_mode(settings) if settings is not None else None
         if (
-            billing_mode == admin_billing.BillingMode.SEAT_CREDIT
-            or (
-                settings is not None
-                and settings.user_creation_mode_id
-                == admin_hierarchy.USER_CREATION_MODE_IDS[admin_hierarchy.PLAN_ONLY]
-            )
+            billing_mode == admin_billing.BillingMode.USER_CREDIT
+            or not admin_hierarchy.allows_form_creation(settings)
         ):
             raise HTTPException(
                 status_code=403,
@@ -84,6 +90,19 @@ def add_user(
             )
         if settings is not None:
             new_user = marzhelp_policy.restricted_create_payload(settings, new_user)
+            if billing_mode in {
+                admin_billing.BillingMode.USED_TRAFFIC,
+                admin_billing.BillingMode.ALLOCATED_TRAFFIC,
+            }:
+                try:
+                    form_cost_toman = owner_pricing.form_price(
+                        db,
+                        settings,
+                        data_limit=new_user.data_limit or None,
+                        expire=new_user.expire or None,
+                    )
+                except admin_hierarchy.HierarchyError as exc:
+                    raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)})
 
     if not new_user.proxies:
         raise HTTPException(
@@ -99,12 +118,23 @@ def add_user(
             )
 
     try:
-        dbuser = crud.create_user(
-            db, new_user, admin=dbadmin
-        )
+        dbuser = crud.create_user(db, new_user, admin=dbadmin, commit=False)
+        if dbadmin is not None:
+            money_billing.charge_form_purchase(
+                db,
+                buyer=dbadmin,
+                actor=dbadmin,
+                user_id=dbuser.id,
+                amount_toman=form_cost_toman,
+            )
+        db.commit()
+        db.refresh(dbuser)
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="User already exists")
+    except admin_hierarchy.HierarchyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)})
 
     bg.add_task(xray.operations.add_user_by_id, user_id=dbuser.id)
     user = admin_plans.scoped_user_response(db, dbuser, actor=dbadmin or admin)
@@ -173,6 +203,13 @@ def modify_user(
     previous_value = user_audit_state(dbuser)
     old_status = dbuser.status
     dbactor = crud.get_admin(db, admin.username) or admin
+    if dbactor is not None and not admin_hierarchy.is_owner(db, dbactor):
+        settings = db.get(MarzhelpAdminSettings, dbuser.admin_id)
+        if modified_user.expire is not None and admin_hierarchy.allows_form_creation(settings):
+            try:
+                owner_pricing.duration_preset(db, modified_user.expire or None)
+            except admin_hierarchy.HierarchyError as exc:
+                raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)})
     dbuser = crud.update_user(db, dbuser, modified_user, actor=dbactor)
     user = admin_plans.scoped_user_response(db, dbuser, actor=dbactor)
     new_value = user_audit_state(dbuser)

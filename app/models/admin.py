@@ -352,7 +352,7 @@ class ManagedAdmin(Admin):
     quota: AdminQuotaSummary
     plan_category_ids: list[int] = Field(default_factory=list)
     plan_prices: list[AdminPlanPriceInput] = Field(default_factory=list)
-    user_creation_mode: Literal["FREE_FORM", "PLAN_ONLY"] = "PLAN_ONLY"
+    user_creation_mode: Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"] = "PLAN_ONLY"
     can_manage_plans: bool = False
     can_create_admins: bool = False
     can_delegate_admin_creation: bool = False
@@ -391,7 +391,7 @@ class AdminCapabilities(BaseModel):
     admin_creation_remaining: Optional[int] = None
     allowed_child_roles: list[Literal["ADMIN"]] = Field(default_factory=list)
     allowed_child_billing_modes: list[BillingMode] = Field(default_factory=list)
-    allowed_child_user_creation_modes: list[Literal["FREE_FORM", "PLAN_ONLY"]] = Field(default_factory=list)
+    allowed_child_user_creation_modes: list[Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"]] = Field(default_factory=list)
     can_delegate_plan_management: bool = False
 
 
@@ -405,7 +405,7 @@ class ManagedAdminList(BaseModel):
 class ManagedAdminCreate(AdminCreate):
     policy: MarzhelpAdminPolicy = Field(default_factory=MarzhelpAdminPolicy)
     plan_category_ids: list[int] = Field(default_factory=list)
-    user_creation_mode: Literal["FREE_FORM", "PLAN_ONLY"] = "PLAN_ONLY"
+    user_creation_mode: Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"] = "PLAN_ONLY"
     can_manage_plans: bool = False
     can_create_admins: bool = False
     can_delegate_admin_creation: bool = False
@@ -418,7 +418,7 @@ class ManagedAdminCreate(AdminCreate):
 class ManagedAdminModify(AdminModify):
     policy: MarzhelpAdminPolicy
     plan_category_ids: Optional[list[int]] = None
-    user_creation_mode: Optional[Literal["FREE_FORM", "PLAN_ONLY"]] = None
+    user_creation_mode: Optional[Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"]] = None
     can_manage_plans: Optional[bool] = None
     can_create_admins: bool = False
     can_delegate_admin_creation: bool = False

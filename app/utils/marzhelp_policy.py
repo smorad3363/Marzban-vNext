@@ -1254,6 +1254,15 @@ def validate_update(
         if modify.data_limit is not None
         else dbuser.data_limit
     )
+    if strategy.mode == admin_billing.BillingMode.ALLOCATED_TRAFFIC:
+        if data_limit is None:
+            raise MarzhelpPolicyError(
+                "unlimited_form_traffic_forbidden", "Allocated Form cannot set unlimited traffic"
+            )
+        if old_data_limit is not None and int(data_limit) < int(old_data_limit):
+            raise MarzhelpPolicyError(
+                "allocated_traffic_reduction_forbidden", "Admin cannot reduce allocated user traffic"
+            )
     expire = _effective_expire(modify.expire) if modify.expire is not None else dbuser.expire
     on_hold_duration = (
         modify.on_hold_expire_duration

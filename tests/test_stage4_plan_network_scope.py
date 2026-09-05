@@ -20,12 +20,12 @@ from app.db.models import (
     ProxyHost,
     ProxyInbound,
 )
-from app.models.admin_hierarchy import PlanCreate, PlanVersionInput
+from app.models.admin_hierarchy import AccessGroupInput, PlanCreate, PlanVersionInput
 from app.models.proxy import ProxySettings, ProxyTypes
 from app.models import user as user_models
 from app.models.user import UserResponse
 from app.subscription import share
-from app.utils import admin_hierarchy, admin_plans
+from app.utils import access_groups, admin_hierarchy, admin_plans
 
 
 @pytest.fixture()
@@ -136,8 +136,8 @@ class _CaptureConfiguration:
 
 
 def test_empty_inbound_or_host_scope_is_rejected():
-    with pytest.raises(ValidationError, match="at least one allowed inbound"):
-        PlanVersionInput(data_limit=1, duration_days=1, inbounds=[], hosts={})
+    commercial = PlanVersionInput(data_limit=1, duration_days=1, inbounds=[], hosts={})
+    assert commercial.inbounds == []
     with pytest.raises(ValidationError, match="at least one host"):
         PlanVersionInput(
             data_limit=1,
@@ -145,6 +145,47 @@ def test_empty_inbound_or_host_scope_is_rejected():
             inbounds=["VLESS TCP"],
             hosts={"VLESS TCP": []},
         )
+
+
+def test_commercial_plan_and_access_group_are_independent(db, monkeypatch):
+    session, owner = db
+    tag, first, second = _configure_network(session, monkeypatch)
+    plan = admin_plans.create_plan(
+        session,
+        owner,
+        PlanCreate(
+            name="commercial-only",
+            version=PlanVersionInput(data_limit=30 * 1024**3, duration_days=30, price_toman=33_000),
+        ),
+    )
+    group = access_groups.create(
+        session,
+        owner,
+        AccessGroupInput(name="primary access", inbounds=[tag], hosts={tag: [first.id]}),
+    )
+    user, _, created = admin_plans.create_user_from_plan(
+        session,
+        actor=owner,
+        plan_id=plan.id,
+        access_group_id=group.id,
+        username="separate-access-user",
+        status="active",
+        note=None,
+        idempotency_key="separate-access-create",
+    )
+    assert created is True
+    assert user.access_group_id == group.id
+    assert admin_plans.subscription_host_scope(session, user) == {tag: {first.id}}
+
+    synced = access_groups.update(
+        session,
+        owner,
+        group,
+        AccessGroupInput(name="primary access", inbounds=[tag], hosts={tag: [second.id]}),
+    )
+    assert synced == [user.id]
+    assert admin_plans.subscription_host_scope(session, user) == {tag: {second.id}}
+    assert admin_plans.plan_response(session, plan).version.inbounds == []
 
 
 def test_plan_scope_persists_and_disabled_or_deleted_host_fails_closed(db, monkeypatch):

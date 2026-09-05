@@ -12,12 +12,60 @@ from app.models.bulk import (
     BulkPreviewResponse,
     BulkUserJobCreateRequest,
     BulkUserPreviewRequest,
+    BulkSelectionPreview,
+    BulkSelectionRequest,
+    BulkSelectionResponse,
 )
 from app.utils import bulk_operations, responses
 from app.utils.audit import AuditLogService
 
 
 router = APIRouter(tags=["Bulk Operations"], prefix="/api", responses={401: responses._401})
+
+
+@router.post("/users/bulk-selection/preview", response_model=BulkSelectionPreview)
+def preview_checked_users(
+    values: BulkSelectionRequest,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    try:
+        return bulk_operations.preview_selection(db, admin, values)
+    except Exception as exc:
+        _raise_domain(exc)
+
+
+@router.post("/users/bulk-selection/execute", response_model=BulkSelectionResponse)
+def execute_checked_users(
+    values: BulkSelectionRequest,
+    request: Request,
+    bg: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    try:
+        result = bulk_operations.execute_selection(db, admin, values)
+    except Exception as exc:
+        db.rollback()
+        _raise_domain(exc)
+    if result.success:
+        bg.add_task(xray.operations.restart_all_cores)
+    AuditLogService.log(
+        db,
+        admin,
+        "bulk.selection.execute",
+        "users",
+        f"Admin {admin.username} processed {len(values.user_ids)} checked users",
+        details={
+            "operation_id": values.operation_id,
+            "user_ids": values.user_ids,
+            "actions": [action.model_dump(mode="json") for action in values.actions],
+            "success": result.success,
+            "failed": result.failed,
+        },
+        request=request,
+    )
+    return result
 
 
 def _raise_domain(exc: Exception) -> None:

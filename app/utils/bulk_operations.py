@@ -31,9 +31,14 @@ from app.models.bulk import (
     BulkTargetScope,
     BulkUserJobCreateRequest,
     BulkUserPreviewRequest,
+    BulkSelectionPreview,
+    BulkSelectionRequest,
+    BulkSelectionResponse,
+    BulkSelectionResult,
 )
 from app.models.user import BulkUserOperation, UserModify, UserStatus
-from app.utils import admin_hierarchy, marzhelp_policy
+from app.utils import admin_hierarchy, marzhelp_policy, owner_pricing
+from app.utils.admin_billing import BillingMode, billing_mode
 
 
 TARGET_INSERT_CHUNK = 1000
@@ -46,6 +51,146 @@ class BulkOperationError(ValueError):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
+
+
+def _selected_users(db: Session, actor: Admin | object, user_ids: list[int], *, lock: bool = False) -> tuple[Admin, list[User]]:
+    """Resolve only the checked IDs and reject hidden/out-of-scope targets."""
+    dbactor = _db_actor(db, actor)
+    query = db.query(User).filter(User.id.in_(user_ids)).order_by(User.id)
+    query = crud.apply_inbound_access_filter(query, marzhelp_policy.allowed_inbound_tags(db, dbactor))
+    if lock:
+        query = query.with_for_update()
+    users = query.all()
+    found = {user.id for user in users}
+    missing = sorted(set(user_ids) - found)
+    forbidden = [
+        user.id for user in users
+        if user.admin_id is None or not admin_hierarchy.admin_in_scope(db, dbactor, user.admin_id)
+    ]
+    if missing:
+        raise BulkOperationError("selected_user_not_found", f"Unknown or hidden User IDs: {missing}", status_code=404)
+    if forbidden:
+        raise BulkOperationError("bulk_scope_forbidden", f"User IDs outside actor scope: {forbidden}", status_code=403)
+    return dbactor, users
+
+
+def _selection_changes(user: User, values: BulkSelectionRequest) -> tuple[dict, int, int, str | None]:
+    changes: dict = {}
+    traffic_delta = 0
+    duration_delta = 0
+    status_change = None
+    for action in values.actions:
+        operation = action.operation
+        amount = int(action.amount or 0)
+        if operation == BulkUserOperation.activate:
+            changes["status"] = UserStatus.active
+            status_change = UserStatus.active.value
+        elif operation == BulkUserOperation.deactivate:
+            changes["status"] = UserStatus.disabled
+            status_change = UserStatus.disabled.value
+        elif operation in (BulkUserOperation.add_data, BulkUserOperation.subtract_data):
+            if user.data_limit is None:
+                raise BulkOperationError("unlimited_data", f"{user.username} has unlimited traffic")
+            traffic_delta += amount if operation == BulkUserOperation.add_data else -amount
+        elif operation in (BulkUserOperation.add_days, BulkUserOperation.subtract_days):
+            if user.expire is None:
+                raise BulkOperationError("unlimited_expiry", f"{user.username} has unlimited duration")
+            duration_delta += amount if operation == BulkUserOperation.add_days else -amount
+        elif operation == BulkUserOperation.delete:
+            changes["delete"] = True
+        else:
+            raise BulkOperationError("unsupported_operation", f"Unsupported operation: {operation.value}")
+    if traffic_delta:
+        changes["data_limit"] = max(1, int(user.data_limit or 0) + traffic_delta)
+    if duration_delta:
+        changes["expire"] = max(1, int(user.expire or 0) + duration_delta * 86400)
+    return changes, traffic_delta, duration_delta, status_change
+
+
+def preview_selection(db: Session, actor: Admin | object, values: BulkSelectionRequest) -> BulkSelectionPreview:
+    dbactor, users = _selected_users(db, actor, values.user_ids)
+    traffic_change = 0
+    duration_change = 0
+    status_change = None
+    cost_toman = 0
+    for user in users:
+        changes, traffic_delta, duration_delta, status = _selection_changes(user, values)
+        traffic_change += traffic_delta
+        duration_change += duration_delta
+        status_change = status or status_change
+        settings = db.get(MarzhelpAdminSettings, user.admin_id) if user.admin_id else None
+        if settings and billing_mode(settings) == BillingMode.ALLOCATED_TRAFFIC:
+            if traffic_delta < 0:
+                raise BulkOperationError("allocated_traffic_reduction_forbidden", "Admin cannot reduce allocated user traffic")
+            if traffic_delta > 0:
+                preset = (
+                    owner_pricing.duration_days_preset(db, abs(duration_delta))
+                    if duration_delta
+                    else owner_pricing.duration_preset(db, user.expire)
+                )
+                policy = owner_pricing.get_policy(db)
+                denominator = owner_pricing.GIB * 10_000
+                cost_toman += (
+                    traffic_delta * int(policy.price_per_gib_toman) * int(preset.multiplier_basis_points)
+                    + denominator - 1
+                ) // denominator
+    return BulkSelectionPreview(
+        user_count=len(users),
+        traffic_change=traffic_change,
+        duration_change_days=duration_change,
+        status_change=status_change,
+        cost_toman=cost_toman,
+        usernames=[user.username for user in users],
+    )
+
+
+def execute_selection(db: Session, actor: Admin | object, values: BulkSelectionRequest) -> BulkSelectionResponse:
+    dbactor, users = _selected_users(db, actor, values.user_ids, lock=True)
+    results: list[BulkSelectionResult] = []
+    for user in users:
+        try:
+            with db.begin_nested():
+                changes, _, _, _ = _selection_changes(user, values)
+                if changes.pop("delete", False):
+                    marzhelp_policy.capture_delete(db, user)
+                    db.delete(user)
+                    db.flush()
+                else:
+                    if changes.get("status") == UserStatus.active:
+                        marzhelp_policy.validate_activation(db, user)
+                    settings = db.get(MarzhelpAdminSettings, user.admin_id) if user.admin_id else None
+                    if settings and not admin_hierarchy.is_owner(db, dbactor) and admin_hierarchy.allows_form_creation(settings):
+                        duration_action = next(
+                            (action for action in values.actions if action.operation in {BulkUserOperation.add_days, BulkUserOperation.subtract_days}),
+                            None,
+                        )
+                        if duration_action:
+                            owner_pricing.duration_days_preset(db, int(duration_action.amount or 0))
+                    crud.update_user(
+                        db,
+                        user,
+                        UserModify(next_plan=_next_plan_snapshot(user), **changes),
+                        commit=False,
+                        actor=dbactor,
+                    )
+            results.append(BulkSelectionResult(user_id=user.id, username=user.username, status="SUCCESS"))
+        except Exception as exc:
+            results.append(
+                BulkSelectionResult(
+                    user_id=user.id,
+                    username=user.username,
+                    status="FAILED",
+                    reason=str(exc)[:512],
+                )
+            )
+    db.commit()
+    success = sum(result.status == "SUCCESS" for result in results)
+    return BulkSelectionResponse(
+        operation_id=values.operation_id,
+        success=success,
+        failed=len(results) - success,
+        results=results,
+    )
 
 
 def _fingerprint(payload: dict) -> str:

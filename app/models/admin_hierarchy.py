@@ -46,7 +46,7 @@ class HierarchyChildCreate(BaseModel):
     role: Literal["ADMIN"] = "ADMIN"
     billing_mode: BillingMode
     initial_credit: Optional[int] = Field(default=None, ge=1)
-    user_creation_mode: Literal["FREE_FORM", "PLAN_ONLY"] = "PLAN_ONLY"
+    user_creation_mode: Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"] = "PLAN_ONLY"
     can_manage_plans: bool = False
     can_create_admins: bool = False
     can_delegate_admin_creation: bool = False
@@ -119,7 +119,7 @@ class RenewalPolicyUpdate(BaseModel):
 
 
 class UserCreationModeUpdate(BaseModel):
-    mode: Literal["FREE_FORM", "PLAN_ONLY"]
+    mode: Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"]
     can_manage_plans: bool = False
 
 
@@ -257,7 +257,7 @@ class AccountSummary(BaseModel):
     money_billing_enabled: bool = False
     money_balance_toman: int = 0
     used_traffic_price_per_gib_toman: Optional[int] = None
-    user_creation_mode: Literal["FREE_FORM", "PLAN_ONLY"] = "FREE_FORM"
+    user_creation_mode: Literal["FORM_ONLY", "PLAN_ONLY", "BOTH", "FREE_FORM"] = "PLAN_ONLY"
     can_manage_plans: bool = False
     trial_quota: int = 0
     trials_used: int = 0
@@ -296,6 +296,7 @@ class PlanVersionInput(BaseModel):
     reset_strategy: Literal["no_reset", "day", "week", "month", "year"] = "no_reset"
     renewal_volume_strategy: Literal["replace"] = "replace"
     renewal_time_strategy: Literal["extend_max"] = "extend_max"
+    # Deprecated migration-only compatibility. New network access belongs to AccessGroup.
     inbounds: list[str] = Field(default_factory=list)
     hosts: dict[str, list[int]] = Field(default_factory=dict)
 
@@ -315,8 +316,10 @@ class PlanVersionInput(BaseModel):
 
     @model_validator(mode="after")
     def require_explicit_network_scope(self):
+        if not self.inbounds and not self.hosts:
+            return self
         if not self.inbounds:
-            raise ValueError("Plan requires at least one allowed inbound")
+            raise ValueError("Legacy Plan network scope requires at least one allowed inbound")
         if set(self.hosts) != set(self.inbounds):
             raise ValueError("Plan host scope must exactly match selected inbounds")
         if any(not self.hosts[tag] for tag in self.inbounds):
@@ -372,6 +375,15 @@ class PlanResponse(BaseModel):
     base_price_toman: Optional[int] = None
 
 
+class PlanSummary(BaseModel):
+    id: int
+    name: str
+    data_limit: int
+    duration_days: int
+    price_toman: int
+    concurrent_user_limit: Optional[int]
+
+
 class AdminPlanPriceInput(BaseModel):
     plan_id: int = Field(gt=0)
     price_toman: int = Field(ge=0)
@@ -388,6 +400,29 @@ class MoneyTransferResponse(BaseModel):
     source_balance_toman: Optional[int] = None
     target_balance_toman: int
     replayed: bool = False
+
+
+class DurationPresetInput(BaseModel):
+    duration_days: int = Field(ge=1, le=3650)
+    multiplier: float = Field(gt=0, le=100)
+    enabled: bool = True
+
+
+class OwnerPricingUpdate(BaseModel):
+    price_per_gib_toman: int = Field(ge=0)
+    allow_unlimited_duration: bool = False
+    duration_presets: list[DurationPresetInput] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def unique_durations(self):
+        days = [item.duration_days for item in self.duration_presets]
+        if len(days) != len(set(days)):
+            raise ValueError("Duration presets must be unique")
+        return self
+
+
+class OwnerPricingResponse(OwnerPricingUpdate):
+    pass
 
 
 class PlanNetworkHostOption(BaseModel):
@@ -407,6 +442,7 @@ class PlanNetworkOption(BaseModel):
 class PlanUserCreate(BaseModel):
     username: str
     plan_id: int
+    access_group_id: Optional[int] = Field(default=None, gt=0)
     status: Literal["active", "on_hold"] = "active"
     note: Optional[str] = Field(default=None, max_length=500)
     idempotency_key: str = Field(min_length=8, max_length=128)
@@ -414,7 +450,40 @@ class PlanUserCreate(BaseModel):
 
 class PlanRenewRequest(BaseModel):
     plan_id: int
+    access_group_id: Optional[int] = Field(default=None, gt=0)
     idempotency_key: str = Field(min_length=8, max_length=128)
+
+
+class AccessGroupInput(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: Optional[str] = Field(default=None, max_length=512)
+    node_ids: list[int] = Field(default_factory=list)
+    inbounds: list[str] = Field(min_length=1)
+    hosts: dict[str, list[int]]
+
+    @field_validator("node_ids", "inbounds")
+    @classmethod
+    def unique_sorted_values(cls, value):
+        return sorted(set(value))
+
+    @model_validator(mode="after")
+    def require_explicit_hosts(self):
+        if set(self.hosts) != set(self.inbounds) or any(not self.hosts[tag] for tag in self.inbounds):
+            raise ValueError("Every Access Group inbound requires at least one explicit host")
+        self.hosts = {tag: sorted(set(ids)) for tag, ids in self.hosts.items()}
+        return self
+
+
+class AccessGroupResponse(BaseModel):
+    id: int
+    owner_admin_id: int
+    name: str
+    description: Optional[str]
+    node_ids: list[int]
+    inbounds: list[str]
+    hosts: dict[str, list[int]]
+    archived_at: Optional[datetime]
+    active_user_count: int = 0
 
 
 class TrialQuotaAdjustmentRequest(BaseModel):

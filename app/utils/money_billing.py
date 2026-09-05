@@ -359,6 +359,48 @@ def charge_plan_purchase(
         )
 
 
+def charge_form_purchase(
+    db: Session,
+    *,
+    buyer: Admin,
+    actor: Admin,
+    user_id: int,
+    amount_toman: int,
+) -> None:
+    """Charge one deterministic ALLOCATED_TRAFFIC Form purchase."""
+    if admin_hierarchy.is_owner(db, buyer) or amount_toman <= 0:
+        return
+    operation_key = f"form-money:create:{user_id}"
+    if db.query(AdminMoneyTransaction.id).filter(AdminMoneyTransaction.operation_key == operation_key).first():
+        return
+    settings = (
+        db.query(MarzhelpAdminSettings)
+        .filter(MarzhelpAdminSettings.admin_id == buyer.id)
+        .with_for_update()
+        .one()
+    )
+    if BillingMode(settings.billing_mode) != BillingMode.ALLOCATED_TRAFFIC:
+        return
+    before = int(settings.money_balance_toman or 0)
+    if before < amount_toman:
+        raise admin_hierarchy.HierarchyError("money_balance_insufficient", "Admin Toman wallet is insufficient")
+    settings.money_balance_toman = before - amount_toman
+    db.add(
+        AdminMoneyTransaction(
+            operation_key=operation_key,
+            operation_type="form_create",
+            admin_id=buyer.id,
+            actor_admin_id=actor.id,
+            counterparty_admin_id=buyer.parent_admin_id,
+            delta_toman=-amount_toman,
+            balance_before=before,
+            balance_after=before - amount_toman,
+            user_id=user_id,
+            details={"formula": "GiB x PricePerGiB x DurationMultiplier"},
+        )
+    )
+
+
 def settle_used_traffic(db: Session, usage_by_admin: dict[int, int]) -> set[int]:
     usage_by_admin = {int(k): int(v) for k, v in usage_by_admin.items() if int(v) > 0}
     if not usage_by_admin:

@@ -9,7 +9,7 @@ from app.models.admin import Admin
 from app.models.proxy import HostUpdateAction, HostUpdateImpact, ProxyHost, ProxyInbound, ProxyTypes
 from app.models.system import DashboardOverview, SystemStats
 from app.models.user import UserStatus
-from app.utils import admin_hierarchy, admin_plans, dashboard_metrics, marzhelp_policy, responses
+from app.utils import access_groups, admin_hierarchy, admin_plans, dashboard_metrics, marzhelp_policy, responses
 from app.utils.audit import AuditLogService
 from app.utils.network_impact import analyze_host_update
 from app.utils.system import cpu_usage, memory_usage, realtime_bandwidth
@@ -232,6 +232,11 @@ def modify_hosts(
             old_id: host.id for old_id, host in replacement_hosts.items()
         }
         synced_user_ids: list[int] = []
+        synced_user_ids.extend(access_groups.propagate_host_changes(
+            db,
+            replacement_ids=replacement_ids,
+            removed_ids=set(impact.removed_host_ids),
+        ))
         for plan_id in impact.affected_plan_ids:
             plan = (
                 db.query(AdminUserPlan)

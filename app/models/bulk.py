@@ -126,3 +126,66 @@ class BulkJobResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime] = None
     targets: list[BulkTargetResultResponse] = Field(default_factory=list)
+
+
+class BulkSelectedAction(BaseModel):
+    operation: BulkUserOperation
+    amount: Optional[int] = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def require_amount(self):
+        if self.operation in {
+            BulkUserOperation.add_data,
+            BulkUserOperation.subtract_data,
+            BulkUserOperation.add_days,
+            BulkUserOperation.subtract_days,
+        } and self.amount is None:
+            raise ValueError("Selected operation requires amount")
+        return self
+
+
+class BulkSelectionRequest(BaseModel):
+    user_ids: list[int] = Field(min_length=1, max_length=500)
+    actions: list[BulkSelectedAction] = Field(min_length=1, max_length=3)
+    operation_id: str = Field(min_length=8, max_length=96)
+
+    @model_validator(mode="after")
+    def validate_compatibility(self):
+        self.user_ids = sorted(set(self.user_ids))
+        operations = [action.operation for action in self.actions]
+        if len(operations) != len(set(operations)):
+            raise ValueError("Duplicate bulk action")
+        if BulkUserOperation.delete in operations and len(operations) > 1:
+            raise ValueError("Delete cannot be combined with another action")
+        if BulkUserOperation.activate in operations and BulkUserOperation.deactivate in operations:
+            raise ValueError("Activate and deactivate are incompatible")
+        if BulkUserOperation.add_data in operations and BulkUserOperation.subtract_data in operations:
+            raise ValueError("Add and subtract traffic are incompatible")
+        if BulkUserOperation.add_days in operations and BulkUserOperation.subtract_days in operations:
+            raise ValueError("Add and subtract duration are incompatible")
+        if BulkUserOperation.add_data_and_days in operations:
+            raise ValueError("Use separate add_data and add_days actions")
+        return self
+
+
+class BulkSelectionPreview(BaseModel):
+    user_count: int
+    traffic_change: int = 0
+    duration_change_days: int = 0
+    status_change: Optional[str] = None
+    cost_toman: int = 0
+    usernames: list[str] = Field(default_factory=list)
+
+
+class BulkSelectionResult(BaseModel):
+    user_id: int
+    username: str
+    status: Literal["SUCCESS", "FAILED"]
+    reason: Optional[str] = None
+
+
+class BulkSelectionResponse(BaseModel):
+    operation_id: str
+    success: int
+    failed: int
+    results: list[BulkSelectionResult]

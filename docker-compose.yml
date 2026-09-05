@@ -1,6 +1,6 @@
 services:
   marzban:
-    image: ghcr.io/smorad3363/marzban:latest
+    image: ghcr.io/smorad3363/marzban:v5.1.0
     restart: always
     env_file: .env
     network_mode: host
@@ -18,7 +18,7 @@ services:
       retries: 3
 
   mysql:
-    image: mysql:latest
+    image: mysql:26.7.0
     env_file: .env
     network_mode: host
     restart: always
@@ -42,7 +42,7 @@ services:
       - --long_query_time=2
       - --skip-log-bin
     volumes:
-      - /var/lib/marzban/mysql:/var/lib/mysql
+      - /var/lib/marzban/mysql-26.7.0:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "marzban", "--password=${MYSQL_PASSWORD}"]
       start_period: 5s

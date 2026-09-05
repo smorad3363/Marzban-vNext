@@ -28,6 +28,7 @@ from app.models.bulk import (
     BulkTargetScope,
     BulkUserJobCreateRequest,
     BulkUserPreviewRequest,
+    BulkSelectionRequest,
 )
 from app.models.user import BulkUserOperation, UserStatus
 from app.utils import bulk_operations
@@ -137,6 +138,37 @@ def _create_user_job(db, operation_id: str, **overrides):
         tree["owner"],
         BulkUserJobCreateRequest(**values),
     )[0]
+
+
+def test_checked_selection_is_exact_and_combines_compatible_actions(db):
+    tree = db.info["tree"]
+    selected = _user(db, tree["direct"], "checked-selected", data_limit=100, expire=2_000_000_000)
+    untouched = _user(db, tree["direct"], "checked-untouched", data_limit=100, expire=2_000_000_000)
+    values = BulkSelectionRequest(
+        operation_id="checked-combined-01",
+        user_ids=[selected.id],
+        actions=[
+            {"operation": "add_data", "amount": 10},
+            {"operation": "add_days", "amount": 7},
+        ],
+    )
+    preview = bulk_operations.preview_selection(db, tree["owner"], values)
+    assert (preview.user_count, preview.traffic_change, preview.duration_change_days) == (1, 10, 7)
+    result = bulk_operations.execute_selection(db, tree["owner"], values)
+    db.refresh(selected)
+    db.refresh(untouched)
+    assert (result.success, result.failed) == (1, 0), result.results
+    assert (selected.data_limit, selected.expire) == (110, 2_000_604_800)
+    assert (untouched.data_limit, untouched.expire) == (100, 2_000_000_000)
+
+
+def test_checked_selection_rejects_incompatible_actions():
+    with pytest.raises(ValueError):
+        BulkSelectionRequest(
+            operation_id="checked-invalid-01",
+            user_ids=[1],
+            actions=[{"operation": "activate"}, {"operation": "deactivate"}],
+        )
 
 
 def test_stage8_api_routes_are_registered():

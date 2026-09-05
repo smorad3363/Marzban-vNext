@@ -131,7 +131,7 @@ def test_sqlite_backup_contains_and_restores_marzhelp_data(tmp_path):
     assert 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" marzban' in backup_script
 
 
-def test_installer_targets_master_and_latest_mysql_image():
+def test_installer_targets_release_image_and_pinned_mysql_image():
     installer = Path("scripts/marzban.sh").read_text(encoding="utf-8")
 
     assert 'MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban}"' in installer
@@ -142,7 +142,9 @@ def test_installer_targets_master_and_latest_mysql_image():
     assert 'marzban_version="latest"' in installer
     assert 'elif [ "$database_type" == "mysql" ]; then' in installer
     assert 'image: $(marzban_docker_image "${marzban_version}")' in installer
-    assert "image: mysql:latest" in installer
+    assert 'MYSQL_TARGET_IMAGE="mysql:${MYSQL_TARGET_VERSION}"' in installer
+    assert "image: ${MYSQL_TARGET_IMAGE}" in installer
+    assert "mysql-${MYSQL_TARGET_VERSION}:/var/lib/mysql" in installer
     assert "    image: mysql:8.0\n" not in installer
     assert 'requested_version="latest"' in installer
     assert 'previous_image=$(yq -r' in installer
@@ -154,24 +156,39 @@ def test_installer_targets_master_and_latest_mysql_image():
     assert 'rollback)' in installer
 
 
-def test_mysql_latest_upgrade_is_staged_and_backed_up():
+def test_mysql_upgrade_uses_resumable_logical_dump_restore():
     installer = Path("scripts/marzban.sh").read_text(encoding="utf-8")
 
-    stage_84 = installer.index('stages=("mysql:8.4" "mysql:9.7" "mysql:latest")')
-    stage_97 = installer.index('stages=("mysql:9.7" "mysql:latest")', stage_84)
-    stage_latest = installer.index('stages=("mysql:latest")', stage_97)
-    assert stage_84 < stage_97 < stage_latest
-    assert "--all-databases --single-transaction" in installer
+    assert 'MYSQL_TARGET_VERSION="26.7.0"' in installer
+    assert 'phase="DUMPED"' in installer
+    assert 'phase="TARGET_CONFIGURED"' in installer
+    assert 'phase="RESTORED"' in installer
+    assert 'phase="COMPLETE"' in installer
+    assert '--databases "$MYSQL_DATABASE" --single-transaction' in installer
     assert "--set-gtid-purged=OFF" in installer
-    assert 'physical_backup="$upgrade_backup_dir/mysql-datadir.tar.gz"' in installer
     assert 'sha256sum "$logical_backup"' in installer
-    assert 'sha256sum "$physical_backup"' in installer
-    assert 'tar --numeric-owner -czpf "$physical_backup"' in installer
-    assert "Do not switch back to an older image" in installer
+    assert 'sha256sum -c "$logical_backup.sha256"' in installer
+    assert 'Original data preserved: ${source_data}' in installer
+    assert 'Logical restore failed. Source data remains untouched' in installer
     assert 'mysql-upgrade)' in installer
     assert 'mysql_upgrade_command "$@"' in installer
     auto_upgrade = installer.index("if mysql_upgrade_required_for_update; then")
     app_pull = installer.index("target_image=$(marzban_docker_image", auto_upgrade)
     assert auto_upgrade < app_pull
     assert 'mysql_upgrade_command\n' in installer[auto_upgrade:app_pull]
-    assert 'mysql|mysql:latest|docker.io/mysql:latest|docker.io/library/mysql:latest)' in installer
+    assert 'mysql_preflight' in installer
+
+
+def test_version_command_reports_and_enforces_release_integrity():
+    installer = Path("scripts/marzban.sh").read_text(encoding="utf-8")
+
+    assert "version_command()" in installer
+    assert "verify_version_integrity()" in installer
+    assert 'echo "CLI version: ${cli_version}"' in installer
+    assert 'echo "Runtime app version: ${runtime_version}"' in installer
+    assert 'echo "Configured Docker image: ${configured_image}"' in installer
+    assert 'echo "Running Docker image: ${running_image}"' in installer
+    assert 'echo "Immutable image digest: ${digest}"' in installer
+    assert 'verify_version_integrity "$marzban_version"' in installer
+    assert 'verify_version_integrity "$requested_version"' in installer
+    assert "version)" in installer

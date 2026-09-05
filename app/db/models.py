@@ -629,6 +629,56 @@ class AdminUserPlanAccess(Base):
     include_subtree = Column(Boolean, nullable=False, default=False)
 
 
+class AccessGroup(Base):
+    __tablename__ = "access_groups"
+    __table_args__ = (
+        Index("ix_access_groups_owner_active", "owner_admin_id", "archived_at", "id"),
+        UniqueConstraint("owner_admin_id", "name", name="uq_access_groups_owner_name"),
+    )
+
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    owner_admin_id = Column(Integer, ForeignKey("admins.id", ondelete="RESTRICT"), nullable=False)
+    name = Column(String(128), nullable=False)
+    description = Column(String(512), nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=utc_now_naive)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
+
+
+class AccessGroupInbound(Base):
+    __tablename__ = "access_group_inbounds"
+
+    access_group_id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("access_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    inbound_tag = Column(String(256), primary_key=True)
+
+
+class AccessGroupHost(Base):
+    __tablename__ = "access_group_hosts"
+
+    access_group_id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("access_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    inbound_tag = Column(String(256), primary_key=True)
+    host_id = Column(Integer, primary_key=True)
+
+
+class AccessGroupNode(Base):
+    __tablename__ = "access_group_nodes"
+
+    access_group_id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("access_groups.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), primary_key=True)
+
+
 class UserPlanAssignment(Base):
     __tablename__ = "user_plan_assignments"
     __table_args__ = (
@@ -1150,6 +1200,24 @@ class MarzhelpRuntimeSetting(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class OwnerCommercialPolicy(Base):
+    __tablename__ = "owner_commercial_policy"
+
+    id = Column(Integer, primary_key=True, default=1)
+    price_per_gib_toman = Column(BigInteger, nullable=False, default=1000)
+    allow_unlimited_duration = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OwnerDurationPreset(Base):
+    __tablename__ = "owner_duration_presets"
+
+    duration_days = Column(Integer, primary_key=True)
+    multiplier_basis_points = Column(Integer, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class MarzhelpDeletedUser(Base):
     __tablename__ = "marzhelp_deleted_users"
 
@@ -1253,6 +1321,12 @@ class User(Base):
     usage_logs = relationship("UserUsageResetLogs", back_populates="user")  # maybe rename it to reset_usage_logs?
     expire = Column(Integer, nullable=True)
     admin_id = Column(Integer, ForeignKey("admins.id"), index=True)
+    access_group_id = Column(
+        BigInteger().with_variant(Integer, "sqlite"),
+        ForeignKey("access_groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     admin = relationship("Admin", back_populates="users")
     sub_revoked_at = Column(DateTime, nullable=True, default=None)
     sub_updated_at = Column(DateTime, nullable=True, default=None)
@@ -1590,3 +1664,23 @@ class BackupArtifact(Base):
     error_code = Column(String(64), nullable=True)
     created_at = Column(DateTime, nullable=False, default=utc_now_naive)
     delivered_at = Column(DateTime, nullable=True)
+
+
+class BackupSettings(Base):
+    __tablename__ = "backup_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    enabled = Column(Boolean, nullable=False, default=False, server_default=text("0"))
+    destination = Column(String(24), nullable=False, default="LOCAL", server_default="LOCAL")
+    schedule = Column(String(8), nullable=False, default="24h", server_default="24h")
+    retention_count = Column(Integer, nullable=False, default=14, server_default="14")
+    telegram_bot_token = Column(String(256), nullable=True)
+    telegram_chat_id = Column(String(64), nullable=True)
+    smtp_host = Column(String(256), nullable=True)
+    smtp_port = Column(Integer, nullable=True)
+    smtp_username = Column(String(256), nullable=True)
+    smtp_password = Column(String(256), nullable=True)
+    smtp_use_tls = Column(Boolean, nullable=False, default=True, server_default=text("1"))
+    email_from = Column(String(320), nullable=True)
+    email_to = Column(String(320), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)

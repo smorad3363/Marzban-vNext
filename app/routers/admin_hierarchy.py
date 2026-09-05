@@ -8,6 +8,7 @@ from sqlalchemy.orm import noload
 from app import xray
 from app.db import Session, crud, get_db
 from app.db.models import (
+    AccessGroup,
     Admin as DBAdmin,
     AdminAccountStatus,
     AdminApiToken,
@@ -29,6 +30,8 @@ from app.db.models import (
 )
 from app.models.admin import Admin, AdminCreate, MarzhelpAdminPolicy
 from app.models.admin_hierarchy import (
+    AccessGroupInput,
+    AccessGroupResponse,
     AccountSummary,
     ApiTokenCreate,
     ApiTokenCreated,
@@ -53,9 +56,12 @@ from app.models.admin_hierarchy import (
     PlanCategoryUpdate,
     PlanRenewRequest,
     PlanResponse,
+    PlanSummary,
     PlanUpdate,
     PlanUserCreate,
     OwnerFreezeRequest,
+    OwnerPricingResponse,
+    OwnerPricingUpdate,
     OwnerUnfreezeRequest,
     ReferralAttributionRemove,
     ReferralAttributionResponse,
@@ -71,12 +77,14 @@ from app.models.admin_hierarchy import (
 )
 from app.models.user import UserResponse
 from app.utils import (
+    access_groups,
     admin_billing,
     admin_hierarchy,
     admin_plans,
     billing_service,
     marzhelp_policy,
     money_billing,
+    owner_pricing,
     responses,
     trials,
 )
@@ -1608,11 +1616,33 @@ def get_user_plans(
     admin: Admin = Depends(Admin.get_current),
 ):
     actor = _db_actor(db, admin)
+    if not admin_hierarchy.is_owner(db, actor):
+        raise HTTPException(status_code=403, detail="Plan management is Owner-only")
     query = admin_plans.effective_plans_query(db, actor)
     if before_id is not None:
         query = query.filter(AdminUserPlan.id < before_id)
     plans = query.order_by(AdminUserPlan.id.desc()).limit(limit).all()
     return admin_plans.plan_responses(db, plans, actor=actor)
+
+
+@router.get("/available-user-plans", response_model=list[PlanSummary])
+def get_available_user_plan_summaries(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    plans = admin_plans.effective_plans_query(db, actor).order_by(AdminUserPlan.name, AdminUserPlan.id).all()
+    return [
+        PlanSummary(
+            id=plan.id,
+            name=plan.name,
+            data_limit=plan.version.data_limit,
+            duration_days=plan.version.duration_days,
+            price_toman=plan.effective_price_toman,
+            concurrent_user_limit=plan.version.concurrent_user_limit,
+        )
+        for plan in admin_plans.plan_responses(db, plans, actor=actor)
+    ]
 
 
 @router.get("/plan-network-options", response_model=list[PlanNetworkOption])
@@ -1732,6 +1762,117 @@ def archive_plan_category(
     return {"detail": "Plan category archived"}
 
 
+@router.get("/access-groups", response_model=list[AccessGroupResponse])
+def get_access_groups(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    return [access_groups.response(db, group) for group in access_groups.list_groups(db, actor)]
+
+
+@router.get("/owner/pricing", response_model=OwnerPricingResponse)
+def get_owner_pricing(
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    if not admin_hierarchy.is_owner(db, actor):
+        raise HTTPException(status_code=403, detail="Only Owner can view pricing settings")
+    return owner_pricing.response(db)
+
+
+@router.put("/owner/pricing", response_model=OwnerPricingResponse)
+def update_owner_pricing(
+    values: OwnerPricingUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    try:
+        result = owner_pricing.update(db, actor, values)
+    except Exception as exc:
+        _raise_domain(exc)
+    AuditLogService.log(
+        db, actor, "owner.pricing_update", "owner_commercial_policy",
+        f"Owner {actor.username} updated pricing and duration presets",
+        new_value=values.model_dump(), request=request,
+    )
+    return result
+
+
+@router.post("/access-groups", response_model=AccessGroupResponse)
+def create_access_group(
+    values: AccessGroupInput,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    try:
+        group = access_groups.create(db, actor, values)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Access Group name already exists")
+    except Exception as exc:
+        _raise_domain(exc)
+    AuditLogService.log(
+        db, actor, "access_group.create", "access_group",
+        f"Owner {actor.username} created Access Group {group.name}",
+        target_id=group.id, target_name=group.name, request=request,
+    )
+    return access_groups.response(db, group)
+
+
+@router.put("/access-groups/{group_id}", response_model=AccessGroupResponse)
+def update_access_group(
+    group_id: int,
+    values: AccessGroupInput,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    group = db.get(AccessGroup, group_id)
+    if group is None:
+        raise HTTPException(status_code=404, detail="Access Group not found")
+    try:
+        synced_ids = access_groups.update(db, actor, group, values)
+    except Exception as exc:
+        _raise_domain(exc)
+    AuditLogService.log(
+        db, actor, "access_group.update", "access_group",
+        f"Owner {actor.username} updated Access Group {group.name}",
+        target_id=group.id, target_name=group.name,
+        details={"synced_active_user_ids": synced_ids}, request=request,
+    )
+    return access_groups.response(db, group)
+
+
+@router.delete("/access-groups/{group_id}")
+def archive_access_group(
+    group_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(Admin.get_current),
+):
+    actor = _db_actor(db, admin)
+    group = db.get(AccessGroup, group_id)
+    if group is None:
+        raise HTTPException(status_code=404, detail="Access Group not found")
+    try:
+        access_groups.archive(db, actor, group)
+    except Exception as exc:
+        _raise_domain(exc)
+    AuditLogService.log(
+        db, actor, "access_group.archive", "access_group",
+        f"Owner {actor.username} archived Access Group {group.name}",
+        target_id=group.id, target_name=group.name, request=request,
+    )
+    return {"detail": "Access Group archived"}
+
+
 @router.post("/user-plans", response_model=PlanResponse)
 def create_user_plan(
     values: PlanCreate,
@@ -1806,8 +1947,8 @@ def archive_user_plan(
     plan = db.get(AdminUserPlan, plan_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
-    if not admin_hierarchy.is_owner(db, actor) and plan.owner_admin_id != actor.id:
-        raise HTTPException(status_code=403, detail="Only plan owner can archive this plan")
+    if not admin_hierarchy.is_owner(db, actor):
+        raise HTTPException(status_code=403, detail="Only Owner can archive Plans")
     plan.archived_at = admin_hierarchy.utc_now_naive()
     db.commit()
     AuditLogService.log(
@@ -1841,6 +1982,7 @@ def create_user_from_plan(
             status=values.status,
             note=values.note,
             idempotency_key=values.idempotency_key,
+            access_group_id=values.access_group_id,
         )
     except IntegrityError:
         db.rollback()
@@ -1883,6 +2025,7 @@ def renew_user_from_plan(
             user=user,
             plan_id=values.plan_id,
             idempotency_key=values.idempotency_key,
+            access_group_id=values.access_group_id,
         )
     except Exception as exc:
         _raise_domain(exc)

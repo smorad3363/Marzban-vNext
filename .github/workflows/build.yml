@@ -39,7 +39,7 @@ jobs:
       matrix:
         mysql-image:
           - mysql:8.0
-          - mysql:latest
+          - mysql:26.7.0
     services:
       mysql:
         image: ${{ matrix.mysql-image }}
@@ -157,29 +157,32 @@ jobs:
           -c "from app.db import engine; connection = engine.connect(); print(connection.exec_driver_sql('SELECT COUNT(*) FROM admins').scalar()); connection.close()"
 
   test-mysql-upgrade:
-    name: test-mysql existing-volume upgrade
+    name: test-mysql logical migration
     runs-on: ubuntu-latest
     steps:
-      - name: Verify 8.0 to 8.4 to 9.7 to latest data upgrade
+      - name: Verify 8.0 logical dump and 26.7.0 restore
         shell: bash
         run: |
           set -Eeuo pipefail
-          volume_name="marzban-mysql-upgrade-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          source_volume="marzban-mysql-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          target_volume="marzban-mysql-target-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           container_name="marzban-mysql-upgrade"
           cleanup() {
             docker rm --force "${container_name}" >/dev/null 2>&1 || true
-            docker volume rm "${volume_name}" >/dev/null 2>&1 || true
+            docker volume rm "${source_volume}" "${target_volume}" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
-          docker volume create "${volume_name}" >/dev/null
+          docker volume create "${source_volume}" >/dev/null
+          docker volume create "${target_volume}" >/dev/null
 
           start_mysql() {
             local image="$1"
+            local volume="$2"
             docker rm --force "${container_name}" >/dev/null 2>&1 || true
             docker run --detach --name "${container_name}" \
               --env MYSQL_ROOT_PASSWORD=root-test-password \
               --env MYSQL_DATABASE=marzban \
-              --volume "${volume_name}:/var/lib/mysql" \
+              --volume "${volume}:/var/lib/mysql" \
               "${image}" \
               --mysqlx=OFF \
               --bind-address=127.0.0.1 \
@@ -214,23 +217,20 @@ jobs:
               mysql --user=root --batch --skip-column-names --execute "$1"
           }
 
-          start_mysql mysql:8.0
+          start_mysql mysql:8.0 "${source_volume}"
           query_mysql "CREATE TABLE marzban.upgrade_sentinel (id BIGINT PRIMARY KEY, value VARCHAR(64) NOT NULL); INSERT INTO marzban.upgrade_sentinel VALUES (1, 'preserved-through-upgrade');"
           query_mysql "SELECT VERSION(); SELECT value FROM marzban.upgrade_sentinel WHERE id = 1;"
+          docker exec -e MYSQL_PWD=root-test-password "${container_name}" \
+            mysqldump --user=root --databases marzban --single-transaction --routines --events --triggers --set-gtid-purged=OFF --hex-blob > /tmp/marzban-migration.sql
+          sha256sum /tmp/marzban-migration.sql > /tmp/marzban-migration.sql.sha256
           docker stop --time 60 "${container_name}" >/dev/null
-
-          for image in mysql:8.4 mysql:9.7 mysql:latest; do
-            start_mysql "${image}"
-            version="$(query_mysql 'SELECT VERSION()')"
-            value="$(query_mysql 'SELECT value FROM marzban.upgrade_sentinel WHERE id = 1')"
-            echo "${image}: ${version}"
-            test "${value}" = "preserved-through-upgrade"
-            case "${image}" in
-              mysql:8.4) [[ "${version}" == 8.4.* ]] ;;
-              mysql:9.7) [[ "${version}" == 9.7.* ]] ;;
-            esac
-            docker stop --time 60 "${container_name}" >/dev/null
-          done
+          sha256sum -c /tmp/marzban-migration.sql.sha256
+          start_mysql mysql:26.7.0 "${target_volume}"
+          docker exec -i -e MYSQL_PWD=root-test-password "${container_name}" mysql --user=root < /tmp/marzban-migration.sql
+          version="$(query_mysql 'SELECT VERSION()')"
+          value="$(query_mysql 'SELECT value FROM marzban.upgrade_sentinel WHERE id = 1')"
+          test "${version}" = "26.7.0"
+          test "${value}" = "preserved-through-upgrade"
 
   build-docker-image:
     needs:
