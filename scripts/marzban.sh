@@ -24,8 +24,8 @@ MYSQL_TARGET_IMAGE="mysql:${MYSQL_TARGET_VERSION}"
 CLI_VERSION_FILE="$APP_DIR/.cli-version"
 MYSQL_MIGRATION_DIR="$APP_DIR/.mysql-migration"
 MYSQL_MIGRATION_STATE="$MYSQL_MIGRATION_DIR/state"
-MARZBAN_FILES_URL_PREFIX="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/${MARZBAN_GITHUB_BRANCH}"
-MARZBAN_SCRIPT_URL="https://github.com/${MARZBAN_GITHUB_REPO}/raw/${MARZBAN_GITHUB_BRANCH}/${MARZBAN_SCRIPTS_PATH}"
+MARZBAN_FILES_URL_PREFIX="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/refs/heads/${MARZBAN_GITHUB_BRANCH}"
+MARZBAN_SCRIPT_URL="https://github.com/${MARZBAN_GITHUB_REPO}/raw/refs/heads/${MARZBAN_GITHUB_BRANCH}/${MARZBAN_SCRIPTS_PATH}"
 MARZBAN_RELEASES_API="https://api.github.com/repos/${MARZBAN_GITHUB_REPO}/releases"
 
 github_download() {
@@ -202,12 +202,17 @@ marzban_script_ref() {
 install_marzban_script_from_repo() {
     local requested_version="${1:-latest}"
     local script_ref="${2:-}"
+    local script_ref_path
     local script_url
     local temp_script
     if [ -z "$script_ref" ]; then
         script_ref=$(marzban_script_ref "$requested_version")
     fi
-    script_url="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/${script_ref}/${MARZBAN_SCRIPTS_PATH}"
+    script_ref_path="$script_ref"
+    if [ "$script_ref" = "$MARZBAN_GITHUB_BRANCH" ]; then
+        script_ref_path="refs/heads/${script_ref}"
+    fi
+    script_url="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/${script_ref_path}/${MARZBAN_SCRIPTS_PATH}"
     temp_script=$(mktemp)
     colorized_echo blue "Installing marzban script from ${MARZBAN_GITHUB_REPO}@${script_ref}"
     if ! github_download -fsSL "$script_url" -o "$temp_script"; then

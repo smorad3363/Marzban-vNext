@@ -111,7 +111,7 @@ Marzban is user-friendly, feature-rich and reliable. It lets you to create diffe
 MySQL 8 is the only supported database. Install with:
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ install --database mysql
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 ```
 
 Once the installation is complete:
@@ -337,7 +337,7 @@ Marzban's backup service efficiently dumps the MySQL database, zips the necessar
 
 Install the Latest Version of Marzban Command:
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ install-script
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install-script
 ```
 
 Setup the Backup Service:

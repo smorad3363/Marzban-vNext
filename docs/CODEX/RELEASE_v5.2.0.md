@@ -16,7 +16,7 @@ tags: [marzban-vnext, release]
 Run on a clean Linux host. No GitHub token is required. The installer resolves the latest published release. It pulls the exact release image when public; if GHCR denies anonymous access, it builds that same tagged release from the public source automatically.
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ install --database mysql
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 marzban create-owner YOUR_USERNAME
 marzban version
 ```
@@ -26,7 +26,7 @@ marzban version
 Keep an independent verified off-host backup before starting. The current public installer replaces an old CLI after a successful update.
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ update
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ update
 marzban version
 ```
 
