@@ -150,7 +150,7 @@ export const Header: FC = () => {
         </HStack>
         <HStack display={{ base: "flex", lg: "none" }} spacing={1} flexShrink={0}>
           <IconButton onClick={toggleColorMode} size="sm" variant="ghost" aria-label={colorMode === "dark" ? "Use light theme" : "Use dark theme"} icon={colorMode === "dark" ? <SunIcon width={19} /> : <MoonIcon width={19} />} />
-          <IconButton onClick={() => setMobileMenuOpen((value) => !value)} size="sm" variant="outline" aria-label={mobileMenuOpen ? "بستن منو" : "بازکردن منو"} aria-expanded={mobileMenuOpen} icon={mobileMenuOpen ? <XMarkIcon width={20} /> : <Bars3Icon width={20} />} />
+          <IconButton color="white" minW="44px" minH="44px" onClick={() => setMobileMenuOpen((value) => !value)} size="sm" variant="outline" aria-label={mobileMenuOpen ? "بستن منو" : "بازکردن منو"} aria-expanded={mobileMenuOpen} icon={mobileMenuOpen ? <XMarkIcon width={20} /> : <Bars3Icon width={20} />} />
         </HStack>
       </HStack>
 

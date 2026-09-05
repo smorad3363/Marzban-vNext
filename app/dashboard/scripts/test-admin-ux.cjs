@@ -107,15 +107,15 @@ assert.ok(overview.includes('trafficModes.length > 1'), "billing-mode chart must
 assert.ok(overview.includes('enabled: Boolean(isOwner && account.data)'), "system metrics must only load for Owner");
 assert.ok(overview.includes("mobileDetailsOpen") && overview.includes("نمایش نمودارها و فعالیت‌ها"), "mobile dashboard details must be collapsed behind an explicit control");
 assert.ok(!dashboard.includes("<AdminCreditSummary") && !dashboard.includes("<Statistics"), "dashboard must not repeat account, user, or traffic summaries in legacy cards");
-assert.ok(overview.includes('user_creation_mode === "FREE_FORM"'), "quick create-user action must follow creation mode");
+assert.ok(overview.includes('["FREE_FORM", "FORM_ONLY", "BOTH"]') && overview.includes("CreateUserFromPlan"), "quick creation must respect explicit modes without Owner-only routing");
 assert.ok(userDialog.includes('isOpen && customCreateAllowed'), "user dialog must fail closed until free-form creation is explicitly allowed");
-assert.ok(userDialog.includes('user_creation_mode === "FREE_FORM"'), "restricted custom form must only open for explicit free-form creation");
+assert.ok(userDialog.includes('["FREE_FORM", "FORM_ONLY", "BOTH"]') && userDialog.includes('billing_mode !== "USER_CREDIT"'), "Form creation must support Core modes and exclude USER_CREDIT");
 assert.ok(userDialog.includes("planOnlyEditLocked"), "Plan-only Admin edits must lock traffic, expiry, and device limits");
 assert.ok(!filters.includes('user_creation_mode !== "PLAN_ONLY"'), "user filter actions must not fail open while account policy is loading");
-assert.ok(filters.includes('user_creation_mode === "FREE_FORM"') && filters.includes('user_creation_mode === "PLAN_ONLY"') && filters.includes('to="/plans/"'), "user filter actions must route Plan-only Admins to Plan creation");
+assert.ok(filters.includes("CreateUserFromPlan") && !filters.includes('to="/plans/"'), "Plan-only Admin creation must not route to Owner management");
 assert.ok(!usersTable.includes('user_creation_mode !== "PLAN_ONLY"'), "empty user state must not fail open while account policy is loading");
-assert.ok(usersTable.includes('user_creation_mode === "FREE_FORM"') && usersTable.includes('user_creation_mode === "PLAN_ONLY"') && usersTable.includes('to="/plans/"'), "empty user state must expose the correct creation path for each policy");
-assert.ok(usersTable.includes('account.data?.account_status === "SUSPENDED"'), "suspended Admin user table must be read-only");
+assert.ok(usersTable.includes("CreateUserFromPlan") && !usersTable.includes('to="/plans/"'), "empty state must offer scoped Plan creation");
+assert.ok(usersTable.includes('account.data?.account_status !== "ACTIVE"'), "suspended Admin user table must be read-only");
 assert.ok(overview.includes('accountData?.account_status === "ACTIVE"'), "suspended Admin dashboard actions must be hidden");
 assert.ok(userDialog.includes('insetInlineStart={3}'), "RTL modal close button must stay opposite the title");
 assert.ok(userDialog.includes('my="3"'), "user modal must reserve top and bottom viewport margins");
@@ -141,3 +141,9 @@ for (const action of ["apply_current", "future_only", "detach"]) {
 assert.ok(hostsDialog.includes("لغو عملیات"), "Host impact modal must offer cancellation");
 
 console.log("admin UX contract: assertions passed");
+
+const checkedBulk = read("src/components/CheckedBulkDialog.tsx");
+const settings = read("src/pages/Settings.tsx");
+assert.ok(checkedBulk.includes("previewKey !== payloadKey") && checkedBulk.includes("operation_id: execution.current.id"), "bulk preview and retry must stay bound to the same payload");
+assert.ok(usersTable.includes("idempotency_key: renewalRequest.current.id"), "renewal retry must retain its idempotency key");
+assert.ok(!settings.includes('fetch("/owner/backups/restore"') && settings.includes("Online restore is disabled"), "UI must honor offline-only recovery");

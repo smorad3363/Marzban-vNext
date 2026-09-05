@@ -3,7 +3,7 @@ import {
   HStack, Input, Modal, ModalBody, ModalCloseButton, ModalContent, ModalFooter,
   ModalHeader, ModalOverlay, Select, SimpleGrid, Stack, Text, useToast,
 } from "@chakra-ui/react";
-import { FC, useEffect, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fetch } from "service/http";
 import { BulkSelectionPreview, BulkSelectionResponse, BulkUserOperation, User } from "types/User";
@@ -43,11 +43,14 @@ export const CheckedBulkDialog: FC<Props> = ({ users, action, isOpen, onClose, o
   const [preview, setPreview] = useState<BulkSelectionPreview | null>(null);
   const [result, setResult] = useState<BulkSelectionResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewKey, setPreviewKey] = useState("");
+  const execution = useRef<{ key: string; id: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen || !action) return;
     setSelected(action.operation === "add_data_and_days" ? ["add_data", "add_days"] : [action.operation]);
     setTraffic("1"); setDays("30"); setPreview(null); setResult(null);
+    execution.current = null;
   }, [isOpen, action]);
 
   const actions = useMemo<Action[]>(() => selected.map((operation) => {
@@ -57,27 +60,33 @@ export const CheckedBulkDialog: FC<Props> = ({ users, action, isOpen, onClose, o
     return { operation };
   }), [selected, traffic, days, unit]);
   const valid = users.length > 0 && actions.length > 0 && actions.every((item) => item.amount === undefined || Number.isInteger(item.amount) && item.amount > 0);
+  const payloadKey = JSON.stringify({ user_ids: users.map((user) => user.id), actions });
 
   useEffect(() => {
+    setPreview(null);
+    setPreviewKey("");
     if (!isOpen || !valid) { setPreview(null); return; }
     const controller = new AbortController();
     const timer = window.setTimeout(() => fetch<BulkSelectionPreview>("/users/bulk-selection/preview", {
       method: "POST",
       body: { operation_id: `bulk-preview-${crypto.randomUUID()}`, user_ids: users.map((user) => user.id), actions },
       signal: controller.signal,
-    }).then(setPreview).catch((error) => {
+    }).then((value) => {
+      if (!controller.signal.aborted) { setPreview(value); setPreviewKey(payloadKey); }
+    }).catch((error) => {
       if (!controller.signal.aborted) toast({ title: "Preview failed", description: localizedApiError(error), status: "error" });
     }), 250);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [isOpen, valid, users, actions, toast]);
+  }, [isOpen, valid, payloadKey, toast]);
 
   const execute = async () => {
-    if (!valid || !preview || busy) return;
+    if (!valid || !preview || previewKey !== payloadKey || busy || result) return;
+    if (execution.current?.key !== payloadKey) execution.current = { key: payloadKey, id: `bulk-user-${crypto.randomUUID()}` };
     setBusy(true);
     try {
       const response = await fetch<BulkSelectionResponse>("/users/bulk-selection/execute", {
         method: "POST",
-        body: { operation_id: `bulk-user-${crypto.randomUUID()}`, user_ids: users.map((user) => user.id), actions },
+        body: { operation_id: execution.current.id, user_ids: users.map((user) => user.id), actions },
       });
       setResult(response);
       toast({ title: `${response.success} succeeded`, description: response.failed ? `${response.failed} failed` : undefined, status: response.failed ? "warning" : "success" });
@@ -91,7 +100,7 @@ export const CheckedBulkDialog: FC<Props> = ({ users, action, isOpen, onClose, o
     <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(6px)" />
     <ModalContent dir={i18n.dir()} mx={3}>
       <ModalHeader>Bulk actions · {users.length} selected</ModalHeader><ModalCloseButton isDisabled={busy} />
-      <ModalBody><Stack spacing={5}>
+      <ModalBody><Stack as="fieldset" disabled={busy || !!execution.current} minW={0} spacing={5}>
         <SimpleGrid columns={{ base: 1, sm: 2 }} gap={2}>
           {operations.map((item) => <Checkbox key={item.value} minH="44px" p={2} borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"
             isChecked={selected.includes(item.value)}
@@ -107,7 +116,7 @@ export const CheckedBulkDialog: FC<Props> = ({ users, action, isOpen, onClose, o
         </AlertDescription></Alert>}
         {result && <Box role="status" aria-live="polite" p={3} borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"><Text fontWeight="700">Success {result.success} · Failed {result.failed}</Text><Stack mt={2} maxH="140px" overflowY="auto">{result.results.filter((item) => item.status === "FAILED").map((item) => <Text key={item.user_id} fontSize="xs" dir="ltr">{item.username}: {item.reason}</Text>)}</Stack></Box>}
       </Stack></ModalBody>
-      <ModalFooter gap={2}><Button variant="ghost" onClick={onClose} isDisabled={busy}>Cancel</Button><Button colorScheme={selected.includes("delete") ? "red" : "primary"} onClick={execute} isLoading={busy} isDisabled={!valid || !preview}>Apply to checked users</Button></ModalFooter>
+      <ModalFooter gap={2}><Button variant="ghost" onClick={onClose} isDisabled={busy}>{result ? "Close" : "Cancel"}</Button><Button colorScheme={selected.includes("delete") ? "red" : "primary"} onClick={execute} isLoading={busy} isDisabled={!valid || !preview || previewKey !== payloadKey || !!result}>Apply to checked users</Button></ModalFooter>
     </ModalContent>
   </Modal>;
 };

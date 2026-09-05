@@ -29,6 +29,7 @@ import { useQuery } from "react-query";
 import { Link } from "react-router-dom";
 import { fetch } from "service/http";
 import { AccountSummary, AdminCapabilities } from "types/Admin";
+import { CreateUserFromPlan } from "./CreateUserFromPlan";
 
 const iconProps = {
   baseStyle: {
@@ -70,6 +71,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
     { enabled: canManageAdmins, staleTime: 30000 }
   );
   const [search, setSearch] = useState("");
+  const [planCreateOpen, setPlanCreateOpen] = useState(false);
   const controlStyle = {
     bg: "rgba(2, 6, 23, .58)",
     color: "gray.100",
@@ -174,7 +176,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
             />
           </IconButton>
           {account.isLoading && <Button size="sm" minH="44px" px={5} isDisabled isLoading>بررسی دسترسی</Button>}
-          {accountActive && account.data?.user_creation_mode === "FREE_FORM" && <Button
+          {accountActive && account.data?.billing_mode !== "USER_CREDIT" && ["FREE_FORM", "FORM_ONLY", "BOTH"].includes(account.data?.user_creation_mode || "") && <Button
             colorScheme="primary"
             size="sm"
             onClick={() => onCreateUser(true)}
@@ -184,9 +186,8 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
           >
             {t("createUser")}
           </Button>}
-          {accountActive && account.data?.user_creation_mode === "PLAN_ONLY" && <Button
-            as={Link}
-            to="/plans/"
+          {accountActive && (account.data?.billing_mode === "USER_CREDIT" || ["PLAN_ONLY", "BOTH"].includes(account.data?.user_creation_mode || "")) && <Button
+            onClick={() => setPlanCreateOpen(true)}
             colorScheme="primary"
             size="sm"
             px={5}
@@ -276,6 +277,7 @@ export const Filters: FC<FilterProps> = ({ ...props }) => {
           </Select>
         </HStack>
       </GridItem>
+      <CreateUserFromPlan isOpen={planCreateOpen} onClose={() => setPlanCreateOpen(false)} />
     </Grid>
   );
 };

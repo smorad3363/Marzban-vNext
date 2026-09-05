@@ -1,4 +1,5 @@
-import { Navigate, createHashRouter } from "react-router-dom";
+import { Navigate, createHashRouter, useRouteError } from "react-router-dom";
+import { Alert, AlertIcon, Button, Center, Stack, Text } from "@chakra-ui/react";
 import { ReactNode } from "react";
 import useGetUser from "hooks/useGetUser";
 import { fetch } from "../service/http";
@@ -22,11 +23,21 @@ const OwnerOnly = ({ children }: { children: ReactNode }) => {
     if (getUserIsPending) return null;
     return userData.is_sudo || userData.role === "OWNER" ? <>{children}</> : <Navigate to="/" replace />;
 };
+const RouteError = () => {
+    const error = useRouteError() as { status?: number; statusCode?: number; response?: { status?: number } };
+    const status = error?.statusCode ?? error?.status ?? error?.response?.status;
+    if (status === 401 || !getAuthToken()) return <Login />;
+    return <Center minH="100vh" p={6}><Stack maxW="lg" spacing={4}>
+        <Alert status="error"><AlertIcon />Unable to load this page</Alert>
+        <Text>The service may be unavailable. Your session has been kept; retry when the connection returns.</Text>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+    </Stack></Center>;
+};
 export const router = createHashRouter([
     {
         path: "/",
         element: <Dashboard />,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
     {
@@ -36,31 +47,31 @@ export const router = createHashRouter([
     {
         path: "/admins/",
         element: <Admins />,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
     {
         path: "/device-limits/",
         element: <DeviceLimits />,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
     {
         path: "/plans/",
         element: <OwnerOnly><Plans /></OwnerOnly>,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
     {
         path: "/settings/",
         element: <OwnerOnly><Settings /></OwnerOnly>,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
     {
         path: "/audit-logs/",
         element: <AuditLogs />,
-        errorElement: <Login />,
+        errorElement: <RouteError />,
         loader: fetchAdminLoader,
     },
 ]);

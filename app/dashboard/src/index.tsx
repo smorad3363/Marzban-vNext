@@ -7,6 +7,7 @@ import Timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import "locales/i18n";
 import React from "react";
+import { MotionConfig } from "framer-motion";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "react-query";
 import { queryClient } from "utils/react-query";
@@ -26,10 +27,10 @@ updateThemeColor(document.documentElement.classList.contains("chakra-ui-dark") ?
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <ChakraProvider theme={theme}>
+    <MotionConfig reducedMotion="user"><ChakraProvider theme={theme}>
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
-    </ChakraProvider>
+    </ChakraProvider></MotionConfig>
   </React.StrictMode>
 );

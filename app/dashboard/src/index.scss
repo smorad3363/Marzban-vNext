@@ -147,6 +147,12 @@ html[lang^="fa"] .chakra-form__label {
   background: #111d17;
 }
 
+// Follow the element's actual direction, including local LTR controls in RTL pages.
+.chakra-select__icon-wrapper {
+  inset-inline-start: auto !important;
+  inset-inline-end: 0.5rem !important;
+}
+
 * {
   scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
   scrollbar-width: thin;

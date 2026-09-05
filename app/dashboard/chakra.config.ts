@@ -128,8 +128,8 @@ export const theme = extendTheme({
         },
       },
       sizes: {
-        sm: { field: { minH: "44px", fontSize: "sm", px: 3 } },
-        md: { field: { minH: "44px", fontSize: "sm", px: 3 } },
+        sm: { field: { minH: "44px", fontSize: "sm", px: 3, paddingInlineEnd: 8 } },
+        md: { field: { minH: "44px", fontSize: "sm", px: 3, paddingInlineEnd: 8 } },
       },
     },
     FormHelperText: {

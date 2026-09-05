@@ -363,14 +363,15 @@ export const UserDialog: FC<UserDialogProps> = () => {
     () => fetch("/account/summary"),
     { enabled: isOpen, staleTime: 30000 }
   );
-  const customCreateAllowed = isEditing || accountQuery.data?.user_creation_mode === "FREE_FORM";
+  const formModeAllowed = ["FREE_FORM", "FORM_ONLY", "BOTH"].includes(accountQuery.data?.user_creation_mode || "") && accountQuery.data?.billing_mode !== "USER_CREDIT";
+  const customCreateAllowed = isEditing || formModeAllowed;
   const planOnlyEditLocked = Boolean(
     isEditing
     && !userData.is_sudo
     && userData.role !== "OWNER"
-    && accountQuery.data?.user_creation_mode === "PLAN_ONLY"
+    && (accountQuery.data?.user_creation_mode === "PLAN_ONLY" || accountQuery.data?.billing_mode === "USER_CREDIT")
   );
-  const restrictedCreate = !isEditing && accountQuery.data?.user_creation_mode === "FREE_FORM" && (
+  const restrictedCreate = !isEditing && formModeAllowed && (
     accountQuery.data?.billing_mode === "USED_TRAFFIC" ||
     accountQuery.data?.billing_mode === "ALLOCATED_TRAFFIC"
   );

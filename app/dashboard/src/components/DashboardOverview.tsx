@@ -39,6 +39,7 @@ import { fetch } from "service/http";
 import { AccountSummary, AdminCapabilities } from "types/Admin";
 import { DashboardOverview as DashboardOverviewData } from "types/Dashboard";
 import { formatBytes } from "utils/formatByte";
+import { CreateUserFromPlan } from "./CreateUserFromPlan";
 
 const iconStyle = { baseStyle: { w: 5, h: 5 } };
 const UsersKpiIcon = chakra(UsersIcon, iconStyle);
@@ -111,26 +112,26 @@ const Kpi: FC<{ label: string; value: string; detail: string; icon: ReactElement
   <Card gridColumn={fullMobile ? { base: "span 2", sm: "auto" } : undefined} p={3.5} minH="118px" bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
     <HStack justify="space-between" align="start" gap={3}>
       <Box minW={0}>
-        <Text color="gray.400" fontSize="xs" fontWeight="700">{label}</Text>
+        <Text color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs" fontWeight="700">{label}</Text>
         <Text mt={1} fontSize="2xl" fontWeight="800" sx={{ fontVariantNumeric: "tabular-nums" }}>{value}</Text>
       </Box>
-      <Box flexShrink={0} p={2} color="primary.300" bg="var(--panel-nested)" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px">{icon}</Box>
+      <Box flexShrink={0} p={2} color="primary.600" _dark={{ color: "primary.300" }} bg="var(--panel-nested)" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px">{icon}</Box>
     </HStack>
-    <Text mt={2} color="gray.400" fontSize="xs" lineHeight="1.6">{detail}</Text>
+    <Text mt={2} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs" lineHeight="1.6">{detail}</Text>
   </Card>
 );
 
 const QuickAction: FC<{ label: string; icon: ReactElement; onClick: () => void }> = ({ label, icon, onClick }) => (
   <Button minH="44px" h="auto" px={3} variant="outline" borderColor="var(--panel-border)" bg="var(--panel-surface)" gap={2} fontSize="xs" justifyContent="flex-start" _hover={{ borderColor: "primary.400", color: "primary.200" }} onClick={onClick}>
-    <Box color="primary.300">{icon}</Box><Text>{label}</Text>
+    <Box color="primary.600" _dark={{ color: "primary.300" }}>{icon}</Box><Text>{label}</Text>
   </Button>
 );
 
 const ResourceMeter: FC<{ label: string; value: string; detail: string; percent?: number; icon: ReactElement }> = ({ label, value, detail, percent, icon }) => (
   <Box p={3} minW={0} bg="var(--panel-nested)" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="12px">
     <HStack justify="space-between" align="start" gap={3}>
-      <Box minW={0}><Text color="gray.400" fontSize="xs">{label}</Text><Text mt={1} fontSize="lg" fontWeight="800" dir="ltr">{value}</Text></Box>
-      <Box color="primary.300">{icon}</Box>
+      <Box minW={0}><Text color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">{label}</Text><Text mt={1} fontSize="lg" fontWeight="800" dir="ltr">{value}</Text></Box>
+      <Box color="primary.600" _dark={{ color: "primary.300" }}>{icon}</Box>
     </HStack>
     {percent !== undefined && <Progress mt={2.5} value={percent} size="sm" borderRadius="full" colorScheme={percent >= 85 ? "red" : percent >= 70 ? "orange" : "green"} aria-label={`${label}: ${Math.round(percent)} درصد`} />}
     <Text mt={2} color="gray.500" fontSize="xs">{detail}</Text>
@@ -164,6 +165,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
   const { version } = useDashboard();
   const navigate = useNavigate();
   const [quickOpen, setQuickOpen] = useState(false);
+  const [planCreateOpen, setPlanCreateOpen] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const desktopDetailsVisible = useBreakpointValue({ base: false, md: true }) ?? false;
   const timezoneOffset = -new Date().getTimezoneOffset();
@@ -276,15 +278,15 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
                     <Badge colorScheme="yellow">{billingModeLabels[accountData.billing_mode]}</Badge>
                     <Badge colorScheme={accountData.user_creation_mode === "PLAN_ONLY" ? "blue" : "green"}>{accountData.user_creation_mode === "PLAN_ONLY" ? "ساخت فقط با پلن" : "ساخت سفارشی"}</Badge>
                   </HStack>
-                  <Text mt={2} color="gray.400" fontSize="xs">{accountData.role === "OWNER" ? "دسترسی مالک" : "اعتبار قابل استفاده"}</Text>
+                  <Text mt={2} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">{accountData.role === "OWNER" ? "دسترسی مالک" : "اعتبار قابل استفاده"}</Text>
                   <Text mt={0.5} fontSize="2xl" fontWeight="800">{accountData.role === "OWNER" ? "بدون سقف" : `${faNumber(accountData.money_balance_toman)} تومان`}</Text>
                 </Box>
-                <Box flexShrink={0} p={2} color="primary.300" bg="rgba(255,255,255,.04)" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"><BoltIcon width={20} /></Box>
+                <Box flexShrink={0} p={2} color="primary.600" _dark={{ color: "primary.300" }} bg="rgba(255,255,255,.04)" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"><BoltIcon width={20} /></Box>
               </HStack>
               {accountData.role === "OWNER" ? (
-                <Text color="gray.400" fontSize="xs">تمام محدودیت‌های تجاری حساب برای مالک غیرفعال است.</Text>
+                <Text color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">تمام محدودیت‌های تجاری حساب برای مالک غیرفعال است.</Text>
               ) : (
-                <Text color="gray.400" fontSize="xs">{accountData.billing_mode === "USED_TRAFFIC" ? `قیمت خرید هر گیگ: ${faNumber(accountData.used_traffic_price_per_gib_toman || 0)} تومان` : "خرید و تمدید از قیمت پلن کسر می‌شود."}</Text>
+                <Text color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">{accountData.billing_mode === "USED_TRAFFIC" ? `قیمت خرید هر گیگ: ${faNumber(accountData.used_traffic_price_per_gib_toman || 0)} تومان` : "خرید و تمدید از قیمت پلن کسر می‌شود."}</Text>
               )}
             </Stack>
           )}
@@ -302,7 +304,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       <Stack spacing={3}>
       <SimpleGrid columns={{ base: 1, xl: 5 }} gap={3}>
         <Card p={3.5} minW={0} gridColumn={{ xl: "span 3" }} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
-          <Box><Text as="h2" fontWeight="800">ترکیب وضعیت کاربران</Text><Text mt={1} color="gray.400" fontSize="xs">هر کاربر دقیقاً در یکی از وضعیت‌های زیر شمرده می‌شود.</Text></Box>
+          <Box><Text as="h2" fontWeight="800">ترکیب وضعیت کاربران</Text><Text mt={1} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">هر کاربر دقیقاً در یکی از وضعیت‌های زیر شمرده می‌شود.</Text></Box>
           {statusTotal === 0 ? <Text py={12} textAlign="center" color="gray.500">هنوز کاربری ثبت نشده است.</Text> : (
             <SimpleGrid columns={{ base: 1, md: 2 }} alignItems="center" gap={2} mt={2}>
               <Box h="210px" minW={0} dir="ltr" aria-label="نمودار وضعیت کاربران"><Chart type="donut" height="100%" options={donutOptions} series={statusItems.map((item) => item.value)} /></Box>
@@ -319,7 +321,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
         </Card>
 
         <Card p={3.5} minW={0} gridColumn={{ xl: "span 2" }} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
-          <HStack justify="space-between" align="start" gap={3}><Box><Text as="h2" fontWeight="800">آخرین فعالیت‌ها</Text><Text mt={1} color="gray.400" fontSize="xs">رخدادهای واقعی در محدوده مدیریتی شما</Text></Box><ClockIcon width={19} color="var(--panel-accent)" aria-hidden="true" /></HStack>
+          <HStack justify="space-between" align="start" gap={3}><Box><Text as="h2" fontWeight="800">آخرین فعالیت‌ها</Text><Text mt={1} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">رخدادهای واقعی در محدوده مدیریتی شما</Text></Box><ClockIcon width={19} color="var(--panel-accent)" aria-hidden="true" /></HStack>
           {activity.isLoading ? <Stack mt={3}>{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} h="42px" borderRadius="9px" />)}</Stack> : activity.isError ? (
             <Text mt={4} color="red.300" fontSize="sm">فعالیت‌ها بارگذاری نشدند.</Text>
           ) : !activity.data?.length ? (
@@ -340,7 +342,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
 
       {trafficModes.length > 1 && (
         <Card p={3.5} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px" minW={0}>
-          <HStack justify="space-between" align="start" gap={3} flexWrap="wrap"><Box><Text as="h2" fontWeight="800">ترافیک به تفکیک نوع اعتبار</Text><Text mt={1} color="gray.400" fontSize="xs">فقط مدل‌هایی نمایش داده می‌شوند که مصرف یا حجم تعریف‌شده دارند.</Text></Box><Badge colorScheme="yellow">GB</Badge></HStack>
+          <HStack justify="space-between" align="start" gap={3} flexWrap="wrap"><Box><Text as="h2" fontWeight="800">ترافیک به تفکیک نوع اعتبار</Text><Text mt={1} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">فقط مدل‌هایی نمایش داده می‌شوند که مصرف یا حجم تعریف‌شده دارند.</Text></Box><Badge colorScheme="yellow">GB</Badge></HStack>
           <Box h={{ base: "190px", md: "220px" }} minW={0} dir="ltr" aria-label="نمودار ترافیک بر اساس نوع اعتبار"><Chart type="bar" height="100%" options={barOptions} series={[
             { name: "مصرف ثبت‌شده", data: trafficModes.map((item) => Number(((item.current_used_traffic ?? 0) / 1073741824).toFixed(2))) },
             { name: "حجم تعریف‌شده", data: trafficModes.map((item) => Number((item.allocated_quota / 1073741824).toFixed(2))) },
@@ -350,7 +352,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
 
       {isOwner && (
         <Card p={3.5} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
-          <HStack justify="space-between" align="start" gap={3} mb={3}><Box><Text as="h2" fontWeight="800">منابع سرور</Text><Text mt={1} color="gray.400" fontSize="xs">اعداد زندهٔ سیستم؛ آمار کاربران و مصرف در این بخش تکرار نشده است.</Text></Box><HStack>{backups.data?.[0] && <Badge colorScheme={backups.data[0].generation_status === "SUCCESS" ? "blue" : "red"}>Backup {backups.data[0].generation_status}</Badge>}{system.data?.version && <Badge colorScheme="green" dir="ltr">v{system.data.version}</Badge>}</HStack></HStack>
+          <HStack justify="space-between" align="start" gap={3} mb={3}><Box><Text as="h2" fontWeight="800">منابع سرور</Text><Text mt={1} color="gray.600" _dark={{ color: "gray.400" }} fontSize="xs">اعداد زندهٔ سیستم؛ آمار کاربران و مصرف در این بخش تکرار نشده است.</Text></Box><HStack>{backups.data?.[0] && <Badge colorScheme={backups.data[0].generation_status === "SUCCESS" ? "blue" : "red"}>Backup {backups.data[0].generation_status}</Badge>}{system.data?.version && <Badge colorScheme="green" dir="ltr">v{system.data.version}</Badge>}</HStack></HStack>
           {system.isLoading ? <Skeleton h="105px" borderRadius="12px" /> : system.isError || !system.data ? <Text color="red.300" fontSize="sm">منابع سرور بارگذاری نشدند.</Text> : (
             <SimpleGrid columns={{ base: 1, md: 3 }} gap={2.5}>
               <ResourceMeter label="پردازنده" value={`${faNumber(Math.round(cpuPercent))}٪`} detail="مصرف لحظه‌ای CPU" percent={cpuPercent} icon={<CpuIcon />} />
@@ -367,14 +369,15 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
 
       {accountData?.account_status === "ACTIVE" && <Box position="fixed" left={{ base: 4, md: 6 }} right="auto" bottom={{ base: 4, md: 6 }} zIndex="popover">
         {quickOpen && <Stack mb={2} p={2} minW="190px" bg="var(--panel-nested)" borderWidth="1px" borderColor="var(--panel-border-strong)" borderRadius="14px" boxShadow="0 18px 48px rgba(0,0,0,.5)">
-          {accountData?.user_creation_mode === "FREE_FORM"
+          {accountData?.billing_mode !== "USER_CREDIT" && ["FREE_FORM", "FORM_ONLY", "BOTH"].includes(accountData?.user_creation_mode || "")
             ? <QuickAction label="افزودن کاربر" icon={<UserPlusIcon width={25} />} onClick={() => { useDashboard.getState().onCreateUser(true); setQuickOpen(false); }} />
-            : <QuickAction label="ساخت کاربر از پلن" icon={<UserPlusIcon width={25} />} onClick={() => navigate("/plans/")} />}
+            : <QuickAction label="ساخت کاربر از پلن" icon={<UserPlusIcon width={25} />} onClick={() => { setPlanCreateOpen(true); setQuickOpen(false); }} />}
           {capabilities.data?.can_create_admins && <QuickAction label="ساخت ادمین" icon={<UserGroupIcon width={25} />} onClick={() => { onCreateAdmin(); setQuickOpen(false); }} />}
           {canCreatePlan && <QuickAction label="ساخت پلن" icon={<RectangleStackIcon width={25} />} onClick={() => { onCreatePlan(); setQuickOpen(false); }} />}
         </Stack>}
         <IconButton aria-label={quickOpen ? "بستن دسترسی سریع" : "بازکردن دسترسی سریع"} aria-expanded={quickOpen} icon={<BoltIcon width={24} />} onClick={() => setQuickOpen((value) => !value)} boxSize="54px" borderRadius="full" colorScheme="primary" color="#07130e" boxShadow="0 12px 30px rgba(0,0,0,.45)" />
       </Box>}
+      <CreateUserFromPlan isOpen={planCreateOpen} onClose={() => setPlanCreateOpen(false)} />
     </Stack>
   );
 };

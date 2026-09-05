@@ -55,7 +55,7 @@ import {
 import { ReactComponent as AddFileIcon } from "assets/add_file.svg";
 import { resetStrategy, statusColors } from "constants/UserSettings";
 import { useDashboard } from "contexts/DashboardContext";
-import { FC, ReactNode, useEffect, useState } from "react";
+import { FC, ReactNode, useEffect, useRef, useState } from "react";
 import CopyToClipboard from "react-copy-to-clipboard";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -67,6 +67,7 @@ import { formatBytes } from "utils/formatByte";
 import { localizedApiError } from "utils/apiError";
 import useGetUser from "hooks/useGetUser";
 import { BulkUserActions } from "./BulkUserActions";
+import { CreateUserFromPlan } from "./CreateUserFromPlan";
 import { OnlineBadge } from "./OnlineBadge";
 import { Pagination } from "./Pagination";
 import { UserDeviceLimit } from "./UserDeviceLimit";
@@ -802,6 +803,7 @@ const UserCard: FC<UserCardProps> = ({
 };
 
 const EmptySection: FC<{ isFiltered: boolean; readOnly: boolean }> = ({ isFiltered, readOnly }) => {
+  const [planCreateOpen, setPlanCreateOpen] = useState(false);
   const { onCreateUser } = useDashboard();
   const { t } = useTranslation();
   const account = useQuery<AccountSummary, Error>("account-summary", () => fetch("/account/summary"));
@@ -825,16 +827,17 @@ const EmptySection: FC<{ isFiltered: boolean; readOnly: boolean }> = ({ isFilter
       <Text color="gray.300" maxW="52ch">
         {isFiltered ? t("usersTable.noUserMatched") : t("usersTable.noUser")}
       </Text>
-      {!readOnly && !isFiltered && account.data?.user_creation_mode === "FREE_FORM" && (
+      {!readOnly && !isFiltered && account.data?.billing_mode !== "USER_CREDIT" && ["FREE_FORM", "FORM_ONLY", "BOTH"].includes(account.data?.user_creation_mode || "") && (
         <Button size="sm" colorScheme="primary" onClick={() => onCreateUser(true)}>
           {t("createUser")}
         </Button>
       )}
-      {!readOnly && !isFiltered && account.data?.user_creation_mode === "PLAN_ONLY" && (
-        <Button as={Link} to="/plans/" size="sm" colorScheme="primary">
+      {!readOnly && !isFiltered && (account.data?.billing_mode === "USER_CREDIT" || ["PLAN_ONLY", "BOTH"].includes(account.data?.user_creation_mode || "")) && (
+        <Button onClick={() => setPlanCreateOpen(true)} size="sm" colorScheme="primary">
           ساخت کاربر از پلن
         </Button>
       )}
+      <CreateUserFromPlan isOpen={planCreateOpen} onClose={() => setPlanCreateOpen(false)} />
     </VStack>
   );
 };
@@ -855,23 +858,27 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
   const account = useQuery<AccountSummary, Error>("account-summary", () => fetch("/account/summary"));
   const { userData, getUserIsSuccess } = useGetUser();
   const isOwner = getUserIsSuccess && (userData.is_sudo || userData.role === "OWNER");
-  const readOnly = account.data?.account_status === "SUSPENDED";
+  const readOnly = account.data?.account_status !== "ACTIVE";
   const [renewalUser, setRenewalUser] = useState<User | null>(null);
   const [renewalPlanId, setRenewalPlanId] = useState("");
+  const renewalRequest = useRef<{ key: string; id: string } | null>(null);
   const plans = useQuery<UserPlan[], Error>(
     "user-plans",
     () => fetch("/user-plans"),
     { enabled: renewalModal.isOpen }
   );
   const renew = useMutation(
-    ({ user, planId }: { user: User; planId: number }) =>
-      fetch(`/users/${user.username}/renew-from-plan`, {
+    ({ user, planId }: { user: User; planId: number }) => {
+      const key = `${user.username}:${planId}`;
+      if (renewalRequest.current?.key !== key) renewalRequest.current = { key, id: `renew-${crypto.randomUUID()}` };
+      return fetch(`/users/${user.username}/renew-from-plan`, {
         method: "POST",
         body: {
           plan_id: planId,
-          idempotency_key: `renew-${user.username}-${planId}-${crypto.randomUUID()}`,
+          idempotency_key: renewalRequest.current.id,
         },
-      }),
+      });
+    },
     {
       onSuccess: () => {
         refetchUsers();
@@ -977,6 +984,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 isOwner={isOwner}
                 onOpen={() => onEditingUser(user)}
                 onRenew={() => {
+                  renewalRequest.current = null;
                   setRenewalUser(user);
                   setRenewalPlanId("");
                   renewalModal.onOpen();
@@ -990,6 +998,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
       <Modal
         isOpen={renewalModal.isOpen}
         onClose={() => {
+          if (renew.isLoading) return;
           renewalModal.onClose();
           setRenewalUser(null);
           setRenewalPlanId("");
@@ -999,7 +1008,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
         <ModalOverlay bg="rgba(0,0,0,.72)" />
         <ModalContent mx={3} bg="#111d17" color="gray.100" borderWidth="1px" borderColor="#33483b">
           <ModalHeader>تمدید «{renewalUser?.username}» با پلن</ModalHeader>
-          <ModalCloseButton />
+          <ModalCloseButton isDisabled={renew.isLoading} />
           <ModalBody>
             <FormControl isRequired>
               <FormLabel>پلن قابل‌دسترسی</FormLabel>
@@ -1007,7 +1016,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                 minH="44px"
                 value={renewalPlanId}
                 onChange={(event) => setRenewalPlanId(event.target.value)}
-                isDisabled={plans.isLoading || plans.isError}
+                isDisabled={plans.isLoading || plans.isError || renew.isLoading || !!renewalRequest.current}
               >
                 <option value="">انتخاب پلن</option>
                 {(plans.data || []).map((plan) => (
@@ -1016,6 +1025,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
                   </option>
                 ))}
               </Select>
+              {renewalPlanId && <Text mt={2} fontSize="sm" role="status">قیمت پلن: {(plans.data?.find((plan) => plan.id === Number(renewalPlanId))?.effective_price_toman || 0).toLocaleString()} تومان؛ کسر اعتبار مطابق سیاست حساب است.</Text>}
               {plans.isError && <Text mt={2} color="red.300" fontSize="sm">دریافت پلن‌ها انجام نشد.</Text>}
               {!plans.isLoading && !plans.isError && (plans.data || []).length === 0 && (
                 <Text mt={2} color="gray.400" fontSize="sm">پلن فعالی برای این حساب در دسترس نیست.</Text>
@@ -1023,7 +1033,7 @@ export const UsersTable: FC<UsersTableProps> = (props) => {
             </FormControl>
           </ModalBody>
           <ModalFooter gap={3}>
-            <Button minH="44px" variant="ghost" onClick={renewalModal.onClose}>انصراف</Button>
+            <Button minH="44px" variant="ghost" isDisabled={renew.isLoading} onClick={renewalModal.onClose}>انصراف</Button>
             <Button
               minH="44px"
               colorScheme="primary"

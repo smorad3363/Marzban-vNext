@@ -48,7 +48,7 @@ export type ManagedAdmin = {
   quota: AdminQuotaSummary;
   plan_category_ids: number[];
   plan_prices?: Array<{ plan_id: number; price_toman: number }>;
-  user_creation_mode: "FREE_FORM" | "PLAN_ONLY";
+  user_creation_mode: "FREE_FORM" | "FORM_ONLY" | "PLAN_ONLY" | "BOTH";
   can_manage_plans: boolean;
   dashboard_theme: "heisenberg" | "black_gold";
   logo_url: string | null;
@@ -151,7 +151,7 @@ export type AccountSummary = {
   money_billing_enabled: boolean;
   money_balance_toman: number;
   used_traffic_price_per_gib_toman: number | null;
-  user_creation_mode: "FREE_FORM" | "PLAN_ONLY";
+  user_creation_mode: "FREE_FORM" | "FORM_ONLY" | "PLAN_ONLY" | "BOTH";
   can_manage_plans: boolean;
   trial_quota: number;
   trials_used: number;

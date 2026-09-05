@@ -8,6 +8,18 @@ status: complete
 
 # Execution State
 
+## UI review — 2026-09-05
+
+- Branch: `vnext-ui`; starting commit `769e934121f697f7cd1bf9c9eed985fe57ef9b1f`.
+- Scope: focused frontend review only; preserve reviewed Core and existing visual design.
+- Fixed: Settings hash navigation, offline-only restore guidance, backup credentials/validation states, keyboard-accessible brand uploads, Plan creation entry points for Admins, Core creation-mode compatibility, bulk/renewal retry identity, transient-route recovery, light contrast, reduced motion, and Select RTL spacing.
+- Verification plan: one focused Playwright matrix using disposable browser fixtures, desktop/mobile, RTL/LTR, Owner/Admin, critical workflows, themes, keyboard, and console. No production data.
+- Browser matrix: critical workflows verified against disposable local fixtures; Admin Plan creation and Quick Renew requests captured. Bulk reconnect repeated the same payload and operation ID. Desktop/mobile, direction stress, light/dark, keyboard, Owner-only navigation, Settings, Nodes/Admins empty states, backup validation, and white-label inspected. See [[ASTRA_UI_REVIEW]] for limitations.
+- Verification: final build/TypeScript passed; Plan inbound `14 assertions passed`; hierarchy `PASS`; updated UX contract passed. Direct follow-ups for Select RTL/LTR geometry and Admin quick/empty creation passed. No backend suite rerun.
+- Review checkpoint: `checkpoint-ui-reviewed` on `vnext-ui`; reviewed Core remains unchanged at `30fdb79aed138b5c8eb7057814bee945a035ecf0` and is an ancestor of UI.
+- Publication target: authenticated `origin`; push `vnext-core`, `vnext-ui`, and reviewed checkpoint tags without force. No Release or container image is created by this review.
+- Exact next action: publication only if the local checkpoint is not yet present on origin; otherwise none. Resume from [[ASTRA_UI_REVIEW]] for a new task. Do not repeat completed Core or browser verification merely for reassurance.
+
 ## Technical review — 2026-09-05
 
 - Branch: `vnext-ui`; verified `vnext-core` fixes are merged without replacing UI work.
