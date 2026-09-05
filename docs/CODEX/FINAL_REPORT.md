@@ -10,7 +10,7 @@ status: publication_in_progress
 
 ## Current release state — v5.2.0
 
-This section supersedes the historical implementation report below. Release source commit is `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`, pushed on `vnext-ui`. GHCR publication run `33958439544` is in progress; final tag/Release and registry parity are pending. See [[RELEASE_v5.2.0]] for exact operator procedures and [[STATE]] for resume state.
+This section supersedes the historical implementation report below. Release source commit is `2d8df17b526236c9980ade37d802531dbca0d06f`, pushed on `vnext-ui`. GHCR publication run `33959015635` is in progress; final tag/Release and registry parity are pending. See [[RELEASE_v5.2.0]] for exact operator procedures and [[STATE]] for resume state.
 
 Actual Linux Fresh Install and v5.1.0/MySQL 8.0.46 Upgrade to v5.2.0/MySQL 26.7.0 passed in isolated Docker-in-Docker. Owner, sentinel, source datadir, logical dumps and migration head were preserved. Real backup generation, full/split upload and restore into a separate empty database passed. The production image now includes pinned Oracle MySQL clients; runtime CLI shebang and installer/version/recovery safety were corrected. Email/SMTP remains frozen.
 

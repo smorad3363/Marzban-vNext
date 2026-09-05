@@ -6,9 +6,9 @@ tags: [marzban-vnext, release]
 
 # v5.2.0 operator handoff
 
-- Release commit: `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`.
+- Release commit: `2d8df17b526236c9980ade37d802531dbca0d06f`.
 - Planned Git tag: `v5.2.0` at that exact commit; publication is not complete yet.
-- Image: `ghcr.io/smorad3363/marzban:v5.2.0` (AMD64 and ARM64); registry build in progress.
+- Image: `ghcr.io/smorad3363/marzban-vnext:v5.2.0` (AMD64 and ARM64); registry build in progress.
 - Release location: https://github.com/smorad3363/Marzban-vNext/releases/tag/v5.2.0
 
 ## Fresh Install

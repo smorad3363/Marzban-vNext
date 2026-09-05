@@ -10,6 +10,8 @@ status: in_progress
 
 ## Publication checkpoint — resume here
 
+- Publication correction: first run `33958439544` built both architectures successfully but push to existing upstream-owned `ghcr.io/smorad3363/marzban` failed `permission_denied: write_package`. No image/tag was overwritten. Use independent project package **`ghcr.io/smorad3363/marzban-vnext:v5.2.0`**; installer/compose/workflow/contracts now agree.
+- **Current release source commit is `2d8df17b526236c9980ade37d802531dbca0d06f`**, pushed. **Current publication run is `33959015635`**. These supersede the earlier source/run below. The only source delta since verified candidate is package namespace; no application behavior changed. Final tag must point to this new source commit, not `a1dad79`.
 - Current source/release commit: `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`, `vnext-ui`, pushed to origin. No release tag yet.
 - Phase: F/G. GitHub Actions run `33958439544`, workflow `release-vnext.yml`, repository **smorad3363/Marzban-vNext** (always pass `--repo`; local gh default points upstream). Builds AMD64/ARM64 `ghcr.io/smorad3363/marzban:v5.2.0` and full-SHA tag; refuses overwrite. No automatic GitHub Release.
 - Fresh install and actual v5.1.0/MySQL8.0.46 upgrade passed. Evidence `output/playwright/release-fresh-install.log`, `release-upgrade.log`; upgrade marker `UPGRADE_V510_TO_V520_PASS`. Live upgraded lab healthy, owner `upgrade_owner`, disposable password in ignored fixture/test harness only. Original fresh-install evidence retained under `/opt/marzban-fresh-evidence` and `/var/lib/marzban-fresh-evidence` inside lab.
