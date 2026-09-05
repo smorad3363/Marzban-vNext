@@ -1,7 +1,7 @@
 ---
 title: Astra Core Review
 date: 2026-09-05
-status: core-verified
+status: complete
 tags:
   - marzban-vnext
   - core-review
@@ -47,6 +47,7 @@ Review work starts from `vnext-core` commit `cb602a41277151223dc729754b66a82dc47
 - Additional directly affected accounting retry regressions: `3 passed`, covering SQLAlchemy-wrapped MySQL errors rather than raw driver exceptions.
 - Final affected-path follow-ups: retained/archived Access Group renewal `1 passed`; transport splitting `1 passed`. Renewals reapply the current retained group and reject archived groups before charging.
 - Merged-head follow-up fixes: startup IPv6 discovery and legacy/panel retention isolation `2 passed`. These were committed back to Core before final integration/publication.
+- Final UI-branch compatibility: live MySQL upgraded from Core `a7c4e9d2f610` to existing UI head `b8d5f0a3c721`; branding backend tests `4 passed`. No dashboard or template files changed relative to the original UI tip.
 - The skipped test is the deliberately disabled SQLite full-migration test, not one of the three requested live-MySQL tests. The extra MySQL refund test was not part of this bounded verification and was explicitly deselected.
 - Dependency verification: `uv pip check --python .venv-win/Scripts/python.exe` reports all 68 installed packages compatible. APScheduler remains pinned at `3.11.0`; no dependency changes.
 - Focused Python compilation, full installer Bash syntax, and executable Bash downgrade-guard check passed. Existing UI assets/source remain untouched.
@@ -61,4 +62,4 @@ Review work starts from `vnext-core` commit `cb602a41277151223dc729754b66a82dc47
 
 ## Handoff
 
-Core verification is complete. Pending review commit, `checkpoint-core-reviewed`, and merge into `vnext-ui`. See [[STATE]] for the exact next action. MySQL/SQL skills guided locking/current-read and migration checks; Obsidian Markdown guided this durable handoff format.
+Core verification and integration are complete. Core fixes are saved on `vnext-core`; `checkpoint-core-reviewed` resolves to `30fdb79aed138b5c8eb7057814bee945a035ecf0`. That commit is an ancestor of `vnext-ui`, with existing UI work preserved. Both disposable MySQL containers are stopped and retained for optional inspection. Both branches and the review tag are publication targets; no new release/image is claimed. See [[STATE]] for resume status. MySQL/SQL skills guided locking/current-read and migration checks; Obsidian Markdown guided this durable handoff format.

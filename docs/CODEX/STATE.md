@@ -3,14 +3,14 @@ title: Codex Execution State
 tags:
   - marzban-vnext
   - execution-state
-status: core-review-integration
+status: complete
 ---
 
 # Execution State
 
 ## Technical review — 2026-09-05
 
-- Branch: `vnext-ui`; verified `vnext-core` fixes are being merged without replacing UI work.
+- Branch: `vnext-ui`; verified `vnext-core` fixes are merged without replacing UI work.
 - Review scope: technical/Core only. No UI redesign or production database access.
 - Disposable MySQL: all three requested integration tests passed on `8.0.46` (port `33316`) and `26.7.0` (port `33317`). The final `26.7.0` run additionally covers new partial-migration and stale-wallet regressions. No production data accessed.
 - Fixed: live migration errors/resumability, migration write window/downgrade guard, bulk replay and billing, central policy, node scope/stale state, backup validation/scheduling, and version-integrity gaps. Details: [[ASTRA_CORE_REVIEW]].
@@ -19,7 +19,11 @@ status: core-review-integration
 - Merged-head follow-ups: IPv6 discovery startup fallback and legacy/panel retention isolation fixed on Core; affected regressions `2 passed`.
 - Direct follow-ups: accounting retries `3 passed`, retained-group renewal `1 passed`, transport splitting `1 passed`. No consolidated suite repeat.
 - Safety change: online restore fails closed with `offline_restore_required`; use isolated offline recovery as documented.
-- Core fixes committed and tagged `checkpoint-core-reviewed`. Next: verify merged migration head and branding schema compatibility, complete merge, push branches/tag under repository completion rules.
+- Core fixes committed and tagged `checkpoint-core-reviewed` at `30fdb79aed138b5c8eb7057814bee945a035ecf0`; this commit is an ancestor of `vnext-ui`.
+- Integration: live MySQL merged head `b8d5f0a3c721` verified; branding compatibility `4 passed`; dashboard/template diff against the original UI tip is empty.
+- Test containers are stopped and retained for optional inspection; no production data was accessed or changed.
+- Publication target: `origin` (`https://github.com/smorad3363/Marzban-vNext.git`), both branches and `checkpoint-core-reviewed`; no release or image is created by this review.
+- Exact next action: none after publication. Resume from [[ASTRA_CORE_REVIEW]] only for a new task; do not rerun completed verification merely for reassurance.
 
 ## Previous implementation record (historical)
 
