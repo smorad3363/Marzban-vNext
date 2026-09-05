@@ -44,3 +44,10 @@ Roadmap phases 1-13 are implemented on isolated branches. `vnext-core` preserves
 - Backup restore remains Owner-only and creates a pre-restore backup before mutation.
 - The three skipped MySQL integration cases require an explicit disposable live MySQL test URL; static preflight, migration, and archive contracts passed.
 - Private publication target: `https://github.com/smorad3363/Marzban-vNext`.
+
+## Publication
+
+- `vnext-core`: `cb602a41277151223dc729754b66a82dc4736637`
+- UI checkpoint: `8146bae1fb615da311200ae3da8d9b343a966c90`
+- Tags pushed: `baseline-v5.1.0`, `checkpoint-core-complete`, `checkpoint-ui-complete`
+- Default branch: `vnext-ui`
