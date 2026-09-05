@@ -13,37 +13,27 @@ tags: [marzban-vnext, release]
 
 ## Fresh Install
 
-Run in a root shell on a clean Linux host with Docker/Compose available. The repository is private: authenticate GitHub CLI with repository read access first (`gh auth login`). If the container package is private, authenticate Docker to GHCR separately with a credential that has `read:packages`; never paste credentials into public logs.
+Run on a clean Linux host. No GitHub token is required. The installer resolves the latest published release. It pulls the exact release image when public; if GHCR denies anonymous access, it builds that same tagged release from the public source automatically.
 
 ```bash
-: "${GHCR_TOKEN:?Export a GitHub token with read:packages access}"
-printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-export GH_TOKEN="$(gh auth token)"
-installer=$(mktemp /tmp/marzban-install.XXXXXXXX)
-gh api -H 'Accept: application/vnd.github.raw+json' \
-  'repos/smorad3363/Marzban-vNext/contents/scripts/marzban.sh?ref=v5.2.0' > "$installer"
-bash -n "$installer" && bash "$installer" install --version v5.2.0 --database mysql
-rm -f "$installer"
-unset GH_TOKEN
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 marzban create-owner YOUR_USERNAME
 marzban version
 ```
 
 ## Upgrade from v5.1.0
 
-Keep an independent verified off-host backup before starting. Run as root. This explicitly installs the new installer first: an old CLI may otherwise select the old repository or unsafe update behavior.
+Keep an independent verified off-host backup before starting. The current public installer replaces an old CLI after a successful update.
 
 ```bash
-: "${GHCR_TOKEN:?Export a GitHub token with read:packages access}"
-printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-export GH_TOKEN="$(gh auth token)"
-installer=$(mktemp /tmp/marzban-update.XXXXXXXX)
-gh api -H 'Accept: application/vnd.github.raw+json' \
-  'repos/smorad3363/Marzban-vNext/contents/scripts/marzban.sh?ref=v5.2.0' > "$installer"
-bash -n "$installer" && bash "$installer" update --version v5.2.0
-rm -f "$installer"
-unset GH_TOKEN
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/vnext-ui/scripts/marzban.sh)" @ update
 marzban version
+```
+
+After installation, future releases use the short command:
+
+```bash
+marzban update
 ```
 
 MySQL is pinned to `26.7.0`. Older supported MySQL versions migrate by logical dump into `/var/lib/marzban/mysql-26.7.0`; the original datadir is retained. Never mount an old raw datadir into a new MySQL series. Upgrade stops application writers and retains `/opt/marzban/pre-update.*` plus logical migration backups. Allow disk space for source, target and backups. Failed migration/health checks require inspection; do not blindly restart an older application against a migrated schema.
@@ -79,4 +69,4 @@ Canonical panel ZIP/multipart uploads are validated in the UI; actual restoratio
 - TypeScript and production Vite bundle generated; pinned MySQL client binaries execute inside the final local image. Existing Vite chunk/directive warnings remain.
 - Published-image gate `33959724851` passed: manifest contains AMD64/ARM64; revision, runtime `5.2.0`, MySQL client `26.7.0`, CLI and compiled uploader match. Publication workflow `33959015635` passed. No real email/Telegram delivery or production data was used.
 
-Known limitations: private source requires authentication; offline-only Restore; Persian-first interface with some English labels; existing Access Group management remains Owner API-only. Reviewed Core/UI evidence is preserved in [[ASTRA_CORE_REVIEW]] and [[ASTRA_UI_REVIEW]].
+Known limitations: anonymous GHCR pulls currently fall back to a local release build and therefore take longer; offline-only Restore; Persian-first interface with some English labels; existing Access Group management remains Owner API-only. Reviewed Core/UI evidence is preserved in [[ASTRA_CORE_REVIEW]] and [[ASTRA_UI_REVIEW]].

@@ -20,6 +20,11 @@ def test_release_version_and_install_rollback_contract():
     assert 'rm -rf "$backup_dir"' not in installer
     assert 'verify_version_integrity "$marzban_version"' in installer
     assert 'verify_version_integrity "$requested_version"' in installer
+    assert 'marzban_version="latest"' in installer
+    assert 'requested_version="latest"' in installer
+    assert 'install_marzban_script_from_repo "$marzban_version" "$MARZBAN_GITHUB_BRANCH"' in installer
+    assert 'update_marzban_script "$requested_version" "$MARZBAN_GITHUB_BRANCH"' in installer
+    assert 'docker build --pull --tag "$image" "$source_dir"' in installer
     assert 'Configured MySQL image:' in installer
     assert 'Runtime MySQL version:' in installer
     assert 'Refuse overwriting an existing release image' in workflow

@@ -139,14 +139,17 @@ def test_installer_targets_release_image_and_pinned_mysql_image():
     assert 'MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban-vnext}"' in installer
     assert 'database_type="mysql"' in installer
     assert "This Marzban build supports MySQL only" in installer
-    assert 'marzban_version="$CLI_RELEASE_VERSION"' in installer
+    assert 'marzban_version="latest"' in installer
     assert 'elif [ "$database_type" == "mysql" ]; then' in installer
     assert 'image: $(marzban_docker_image "${marzban_version}")' in installer
     assert 'MYSQL_TARGET_IMAGE="mysql:${MYSQL_TARGET_VERSION}"' in installer
     assert "image: ${MYSQL_TARGET_IMAGE}" in installer
     assert "mysql-${MYSQL_TARGET_VERSION}:/var/lib/mysql" in installer
     assert "    image: mysql:8.0\n" not in installer
-    assert 'requested_version="$CLI_RELEASE_VERSION"' in installer
+    assert 'requested_version="latest"' in installer
+    assert 'ensure_marzban_image "$marzban_version"' in installer
+    assert 'build_marzban_image_from_source()' in installer
+    assert 'update_marzban "$requested_version"' in installer
     assert 'previous_image=$(yq -r' in installer
     assert "for attempt in $(seq 1 150)" in installer
     assert "/code/scripts/healthcheck.py --mode internal --timeout 3" in installer

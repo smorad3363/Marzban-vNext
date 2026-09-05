@@ -10,6 +10,7 @@ status: COMPLETE_RELEASED_V5.2.0
 
 ## COMPLETE_RELEASED_V5.2.0
 
+- Post-release installer hotfix: repository visibility is public; the canonical branch installer returns HTTP `200`, needs no PAT, resolves the latest published release, and keeps `marzban update` on the latest channel. Because the existing GHCR package remains private, anonymous installs fall back to building the exact public release source locally. Bash syntax, focused contracts, public archive extraction/build dispatch, and GitHub latest-release resolution passed. Release tag `v5.2.0` remains immutable and unchanged.
 - Phase A-G complete. Release source/tag commit: `2d8df17b526236c9980ade37d802531dbca0d06f`; Git tag `v5.2.0` resolves exactly to it. Reviewed Core/UI checkpoints remain ancestors and unchanged.
 - Branch `vnext-ui` is pushed with post-release workflow and final documentation commits. User-owned untracked `Final Autonomous Completion Prompt.md` remains local and was never published.
 - Image: `ghcr.io/smorad3363/marzban-vnext:v5.2.0`; multi-platform digest `sha256:605daaf3757db25895ca17e6e31752a449e3bd96e4d9df2d0fe6196166a10527`; immutable full-SHA tag also published. AMD64/ARM64 manifest, revision label, runtime `5.2.0`, MySQL client `26.7.0`, CLI and compiled uploader verified by successful run `33959724851`.
@@ -17,9 +18,9 @@ status: COMPLETE_RELEASED_V5.2.0
 - Verification: actual disposable Fresh Install and v5.1.0/MySQL 8.0.46 Upgrade passed; data/Owner/source datadir/recovery backups retained. Real complete and multipart uploads, canonical backup validation, isolated MySQL restore, focused Core/accounting/auth/device/node paths, TypeScript/build and responsive RTL/LTR browser smoke passed. One intentional SQLite migration skip remains; all requested live MySQL tests ran.
 - Email/SMTP implementation and settings were not changed or exercised. Online restore remains intentionally offline-only for data safety. No production data was accessed.
 - Exact Fresh Install, Upgrade and Rollback procedures: [[RELEASE_v5.2.0]]. Final report: [[FINAL_REPORT]].
-- Publication note: upstream-owned package `ghcr.io/smorad3363/marzban` denied this repository's `write_package`; nothing was overwritten. Independent package `marzban-vnext` is the supported release path. Private source/package require `repo` and `read:packages` authentication.
+- Publication note: upstream-owned package `ghcr.io/smorad3363/marzban` denied this repository's `write_package`; nothing was overwritten. Independent package `marzban-vnext` is the supported release path. Source is public; private-package anonymous access is handled by the installer fallback without a PAT.
 - Cleanup: disposable release Docker-in-Docker lab and browser proxy were removed after evidence capture; retained Core-review MySQL `26.7.0` container was returned to stopped state. No production resources were changed.
-- Exact next action: none. For a new task, start from this section and `git status`; do not rerun completed release checks.
+- Exact next action: commit and push the public-installer hotfix if it is not yet on `origin/vnext-ui`; otherwise none. For a new task, start from this section and `git status`; do not rerun completed release checks.
 - Blocker: none.
 
 > [!note] Historical checkpoints

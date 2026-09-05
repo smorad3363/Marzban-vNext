@@ -31,9 +31,9 @@ MARZBAN_RELEASES_API="https://api.github.com/repos/${MARZBAN_GITHUB_REPO}/releas
 github_download() {
     local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
     if [ -n "$token" ]; then
-        curl --header "Authorization: Bearer $token" "$@"
+        curl --retry 3 --retry-delay 2 --connect-timeout 15 --header "Authorization: Bearer $token" "$@"
     else
-        curl "$@"
+        curl --retry 3 --retry-delay 2 --connect-timeout 15 "$@"
     fi
 }
 
@@ -201,10 +201,12 @@ marzban_script_ref() {
 
 install_marzban_script_from_repo() {
     local requested_version="${1:-latest}"
-    local script_ref
+    local script_ref="${2:-}"
     local script_url
     local temp_script
-    script_ref=$(marzban_script_ref "$requested_version")
+    if [ -z "$script_ref" ]; then
+        script_ref=$(marzban_script_ref "$requested_version")
+    fi
     script_url="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/${script_ref}/${MARZBAN_SCRIPTS_PATH}"
     temp_script=$(mktemp)
     colorized_echo blue "Installing marzban script from ${MARZBAN_GITHUB_REPO}@${script_ref}"
@@ -223,6 +225,62 @@ install_marzban_script_from_repo() {
         chmod 644 "$CLI_VERSION_FILE"
     fi
     colorized_echo green "marzban script installed successfully"
+}
+
+cleanup_release_build_dir() {
+    local build_dir="$1"
+    case "$build_dir" in
+        /tmp/marzban-release-build.*)
+            rm -rf -- "$build_dir"
+        ;;
+    esac
+}
+
+build_marzban_image_from_source() {
+    local requested_version="$1"
+    local source_ref image build_dir archive source_dir
+    source_ref=$(marzban_script_ref "$requested_version")
+    image=$(marzban_docker_image "$requested_version")
+    build_dir=$(mktemp -d /tmp/marzban-release-build.XXXXXXXX)
+    archive="$build_dir/source.tar.gz"
+    source_dir="$build_dir/source"
+    mkdir -p "$source_dir"
+
+    colorized_echo yellow "Published image is not publicly readable; building ${requested_version} from the public release source."
+    if ! github_download -fsSL "https://github.com/${MARZBAN_GITHUB_REPO}/archive/refs/tags/${source_ref}.tar.gz" -o "$archive"; then
+        cleanup_release_build_dir "$build_dir"
+        colorized_echo red "Could not download source for ${requested_version}."
+        return 1
+    fi
+    if ! tar -xzf "$archive" -C "$source_dir" --strip-components=1; then
+        cleanup_release_build_dir "$build_dir"
+        colorized_echo red "Could not extract source for ${requested_version}."
+        return 1
+    fi
+    if ! docker build --pull --tag "$image" "$source_dir"; then
+        cleanup_release_build_dir "$build_dir"
+        colorized_echo red "Could not build ${image}."
+        return 1
+    fi
+    cleanup_release_build_dir "$build_dir"
+    colorized_echo green "Built ${image} from public release source."
+}
+
+ensure_marzban_image() {
+    local requested_version="$1"
+    local image
+    image=$(marzban_docker_image "$requested_version")
+    if docker image inspect "$image" >/dev/null 2>&1; then
+        return 0
+    fi
+    if docker pull "$image"; then
+        return 0
+    fi
+    if ! is_release_version "$requested_version"; then
+        colorized_echo red "Could not pull ${image}; source fallback supports release versions only."
+        return 1
+    fi
+    build_marzban_image_from_source "$requested_version"
 }
 
 configured_service_image() {
@@ -262,7 +320,7 @@ version_command() {
     runtime_version=$(runtime_app_version || echo "unavailable")
     if [ -n "$container_id" ]; then
         running_image=$(docker inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || echo "unavailable")
-        digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$running_image" 2>/dev/null || echo "unavailable")
+        digest=$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$running_image" 2>/dev/null || echo "unavailable")
     else
         running_image="not-running"
         digest="unavailable"
@@ -295,7 +353,7 @@ verify_version_integrity() {
     [ -n "$running_image_id" ] && [ "$running_image_id" = "$expected_image_id" ] || { colorized_echo red "Version integrity failed: running image content differs from the expected local image."; return 1; }
     runtime_version=$(runtime_app_version | tr -d '\r[:space:]' || true)
     cli_version=$(cat "$CLI_VERSION_FILE" 2>/dev/null | tr -d '\r[:space:]' || true)
-    digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$running_image" 2>/dev/null || true)
+    digest=$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$running_image" 2>/dev/null || true)
 
     [ "$configured_image" = "$expected_image" ] || { colorized_echo red "Version integrity failed: configured image is ${configured_image}, expected ${expected_image}."; return 1; }
     [ "$running_image" = "$expected_image" ] || { colorized_echo red "Version integrity failed: running image is ${running_image}, expected ${expected_image}."; return 1; }
@@ -1281,7 +1339,7 @@ install_command() {
 
     # Default values
     database_type="mysql"
-    marzban_version="$CLI_RELEASE_VERSION"
+    marzban_version="latest"
     marzban_version_set="false"
 
     # Parse options
@@ -1334,6 +1392,9 @@ install_command() {
     if ! command -v curl >/dev/null 2>&1; then
         install_package curl
     fi
+    if ! command -v tar >/dev/null 2>&1; then
+        install_package tar
+    fi
     if ! command -v docker >/dev/null 2>&1; then
         install_docker
     fi
@@ -1363,6 +1424,7 @@ install_command() {
     # Check if the version is valid and exists
     if [[ "$marzban_version" == "dev" ]] || is_release_version "$marzban_version"; then
         if check_version_exists "$marzban_version"; then
+            ensure_marzban_image "$marzban_version" || exit 1
             install_marzban "$marzban_version" "$database_type"
             echo "Installing $marzban_version version"
         else
@@ -1373,7 +1435,11 @@ install_command() {
         echo "Invalid version format. Please enter a valid version (e.g. v5.0.0-rc.9)"
         exit 1
     fi
-    install_marzban_script_from_repo "$marzban_version"
+    if [ "$marzban_version_set" = "true" ]; then
+        install_marzban_script_from_repo "$marzban_version"
+    else
+        install_marzban_script_from_repo "$marzban_version" "$MARZBAN_GITHUB_BRANCH"
+    fi
     chmod 600 "$ENV_FILE"
     up_marzban
     if ! verify_marzban_health; then
@@ -1798,7 +1864,8 @@ update_command() {
         echo "  -h, --help       display this help message"
     }
 
-    local requested_version="$CLI_RELEASE_VERSION"
+    local requested_version="latest"
+    local requested_version_set="false"
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
             -v|--version)
@@ -1807,6 +1874,7 @@ update_command() {
                     exit 1
                 fi
                 requested_version="$2"
+                requested_version_set="true"
                 shift 2
             ;;
             -h|--help)
@@ -1892,7 +1960,7 @@ update_command() {
     yq -i '.services.marzban.volumes += ["/opt/marzban/.env:/opt/marzban/.env:ro"] | .services.marzban.volumes |= unique' "$COMPOSE_FILE"
 
     colorized_echo blue "Pulling Marzban version ${requested_version}"
-    if ! update_marzban; then
+    if ! update_marzban "$requested_version"; then
         yq -i ".services.marzban.image = \"${previous_image}\"" "$COMPOSE_FILE"
         colorized_echo red "Update failed. Restored previous image: ${previous_image}"
         exit 1
@@ -1909,7 +1977,11 @@ update_command() {
         exit 1
     fi
 
-    update_marzban_script "$requested_version"
+    if [ "$requested_version_set" = "true" ]; then
+        update_marzban_script "$requested_version"
+    else
+        update_marzban_script "$requested_version" "$MARZBAN_GITHUB_BRANCH"
+    fi
     if ! verify_version_integrity "$requested_version"; then
         colorized_echo red "Update completed health checks but failed version integrity verification."
         exit 1
@@ -1919,13 +1991,16 @@ update_command() {
 
 update_marzban_script() {
     local requested_version="${1:-latest}"
+    local script_ref="${2:-}"
     colorized_echo blue "Updating marzban script"
-    install_marzban_script_from_repo "$requested_version" || return 1
+    install_marzban_script_from_repo "$requested_version" "$script_ref" || return 1
     colorized_echo green "marzban script updated successfully"
 }
 
 update_marzban() {
-    $COMPOSE -f $COMPOSE_FILE -p "$APP_NAME" pull
+    local requested_version="$1"
+    ensure_marzban_image "$requested_version" || return 1
+    $COMPOSE -f $COMPOSE_FILE -p "$APP_NAME" pull mysql phpmyadmin
 }
 
 mysql_upgrade_required_for_update() {
