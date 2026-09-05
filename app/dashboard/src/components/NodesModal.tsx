@@ -358,7 +358,7 @@ const NodeAccordion: FC<AccordionInboundType> = ({ toggleAccordion, node }) => {
               <Box>
                 <HStack w="full">
                   <AlertIcon w={4} />
-                  <Text marginInlineEnd={0}>{node.message}</Text>
+                  <Text marginInlineEnd={0}>{t("errors.fallback")}</Text>
                 </HStack>
                 <HStack justifyContent="flex-end" w="full">
                   <Button

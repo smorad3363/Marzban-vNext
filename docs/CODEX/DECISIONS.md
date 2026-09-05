@@ -7,6 +7,9 @@ tags:
 
 # Decisions
 
+- Final release upload accepts a complete ZIP or one ordered split set through the same canonical archive validator. New Telegram part filenames carry total count and full-archive SHA-256; legacy numeric suffixes remain supported only when the reconstructed ZIP/member checksums validate. Temporary normalization never modifies retained backups. Online restoration remains disabled; release recovery procedures must stop writers and preserve source data.
+- Final release freezes Email/SMTP delivery and configuration. UI cleanup does not introduce a translation framework migration or new visual design.
+
 - Existing Git repository is authoritative per bootstrap override; no clone or ZIP download.
 - `upstream` remains `https://github.com/smorad3363/Marzban.git`.
 - Baseline is exact annotated tag `v5.1.0`, resolving to `c824e822a2f5e41d91b894aabd2a7b9c77a200d2`.

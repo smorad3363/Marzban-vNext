@@ -428,10 +428,12 @@ def telegram_parts(archive: Path, max_bytes: int) -> list[Path]:
     if archive.stat().st_size <= max_bytes:
         return [archive]
     parts = []
+    total = (archive.stat().st_size + max_bytes - 1) // max_bytes
+    digest = _sha256(archive)
     with archive.open("rb") as source:
         index = 1
         while chunk := source.read(max_bytes):
-            part = archive.with_name(f"{archive.name}.part{index:03d}")
+            part = archive.with_name(f"{archive.name}.part{index:03d}-of{total:03d}-sha256-{digest}")
             with part.open("wb") as output:
                 os.chmod(part, 0o600)
                 output.write(chunk)

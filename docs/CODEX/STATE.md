@@ -3,10 +3,23 @@ title: Codex Execution State
 tags:
   - marzban-vnext
   - execution-state
-status: complete
+status: in_progress
 ---
 
 # Execution State
+
+## Final release execution — 2026-09-05
+
+- Current phase: A+B+C checkpoint — upload transport and UI safety complete; continue D installer/release integrity.
+- Starting/current Git HEAD: `ecdaa04ac16356088a6ed4a925849a0d75667748` on `vnext-ui` (update with each checkpoint).
+- Authority: user explicitly approved the complete `Final Autonomous Completion Prompt.md`, phases A–G, including final `v5.2.0` image and GitHub Release.
+- Completed: unified uploader, ordered new/legacy split normalization, duplicate/missing/mixed/checksum checks, temporary cleanup; common canonical validation retained. UI raw error/code exposure removed from shared errors, form errors, bulk results, and node errors. Email/SMTP code and configuration unchanged.
+- Dirty files: A+B+C source/tests and these notes pending checkpoint; user-owned untracked `Final Autonomous Completion Prompt.md` must be preserved locally and excluded from publication. Use `git status --short` for the exact post-checkpoint list.
+- Constraints: Email/SMTP frozen; preserve reviewed Core/UI and all published history; no production data. Online restore stays fail-closed until a safe offline recovery path is used.
+- Exact next action: commit A+B+C checkpoint; inspect installer install/update/version/health dispatch, correct exact release source and version integrity, and build disposable Linux Fresh Install/Upgrade verification.
+- Verification: backup focused `14 passed`; UI error mapping `8 assertions passed`; existing UX contract passed; TypeScript check pending completion. Final consolidated verification remains pending after installer work.
+- Publication: not yet versioned or released; target existing origin and configured GHCR namespace. Do not claim `COMPLETE_RELEASED_V5.2.0` until release work is complete.
+- Blocker: none.
 
 ## UI review — 2026-09-05
 

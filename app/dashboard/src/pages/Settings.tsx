@@ -30,14 +30,14 @@ export const Settings: FC = () => {
   const [branding, setBranding] = useState<SystemBranding | null>(null);
   const [pricing, setPricing] = useState<Pricing | null>(null);
   const [backup, setBackup] = useState<BackupSettings | null>(null);
-  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreFiles, setRestoreFiles] = useState<File[]>([]);
   const [validation, setValidation] = useState<{ token: string; manifest: Record<string, unknown> } | null>(null);
   const [validating, setValidating] = useState(false);
   useEffect(() => { if (brandingQuery.data) setBranding((current) => current ?? brandingQuery.data!); }, [brandingQuery.data]);
   useEffect(() => { if (pricingQuery.data) setPricing((current) => current ?? pricingQuery.data!); }, [pricingQuery.data]);
   useEffect(() => { if (backupQuery.data) setBackup((current) => current ?? backupQuery.data!); }, [backupQuery.data]);
   const success = (title: string) => { toast({ title, status: "success", duration: 2500 }); };
-  const failure = (error: unknown) => { toast({ title: "Save failed", description: localizedApiError(error), status: "error" }); };
+  const failure = (error: unknown) => { toast({ title: "Operation failed", description: localizedApiError(error), status: "error" }); };
 
   const saveBranding = useMutation(() => fetch<SystemBranding>("/branding/system", { method: "PUT", body: branding }), { onSuccess: (value) => { setBranding(value); queryClient.setQueryData("system-branding", value); success("Branding saved"); }, onError: failure });
   const uploadBrand = async (kind: "logo" | "favicon", event: ChangeEvent<HTMLInputElement>) => {
@@ -49,8 +49,10 @@ export const Settings: FC = () => {
   const savePricing = useMutation(() => fetch<Pricing>("/owner/pricing", { method: "PUT", body: pricing }), { onSuccess: (value) => { setPricing(value); success("Pricing policy saved"); }, onError: failure });
   const saveBackup = useMutation(() => fetch<BackupSettings>("/owner/backups/settings", { method: "PUT", body: backup }), { onSuccess: (value) => { setBackup(value); success("Backup settings saved"); }, onError: failure });
   const createBackup = useMutation(() => fetch("/owner/backups", { method: "POST" }), { onSuccess: () => success("Backup created"), onError: failure });
-  const validateRestore = async () => {
-    if (!restoreFile || validating) return; const body = new FormData(); body.append("backup", restoreFile);
+  const validateRestore = async (files: File[]) => {
+    if (!files.length || validating) return;
+    setRestoreFiles(files);
+    const body = new FormData(); files.forEach((file) => body.append("backups", file));
     setValidating(true); setValidation(null);
     try { const value = await fetch<{ validation_token: string; manifest: Record<string, unknown> }>("/owner/backups/validate", { method: "POST", body }); setValidation({ token: value.validation_token, manifest: value.manifest }); success("Backup validated"); } catch (error) { setValidation(null); failure(error); } finally { setValidating(false); }
   };
@@ -80,7 +82,7 @@ export const Settings: FC = () => {
             {backup.destination.includes("TELEGRAM") && <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}><FormControl><FormLabel>Telegram bot token</FormLabel><Input type="password" placeholder={backup.telegram_configured ? "Configured · leave blank to keep" : "Required"} onChange={(event) => setBackup({ ...backup, telegram_bot_token: event.target.value || null })} /></FormControl><FormControl><FormLabel>Chat ID</FormLabel><Input value={backup.telegram_chat_id || ""} onChange={(event) => setBackup({ ...backup, telegram_chat_id: event.target.value })} /></FormControl></SimpleGrid>}
             {backup.destination.includes("EMAIL") && <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}><FormControl><FormLabel>SMTP username</FormLabel><Input autoComplete="off" value={backup.smtp_username || ""} onChange={(event) => setBackup({ ...backup, smtp_username: event.target.value })} /></FormControl><FormControl><FormLabel>SMTP password</FormLabel><Input type="password" autoComplete="new-password" placeholder={backup.smtp_configured ? "Configured · leave blank to keep" : "Optional"} onChange={(event) => setBackup({ ...backup, smtp_password: event.target.value || null })} /></FormControl><FormControl><FormLabel>SMTP TLS</FormLabel><Switch isChecked={backup.smtp_use_tls} onChange={(event) => setBackup({ ...backup, smtp_use_tls: event.target.checked })} /></FormControl><FormControl><FormLabel>SMTP host</FormLabel><Input value={backup.smtp_host || ""} onChange={(event) => setBackup({ ...backup, smtp_host: event.target.value })} /></FormControl><FormControl><FormLabel>SMTP port</FormLabel><Input type="number" value={backup.smtp_port || ""} onChange={(event) => setBackup({ ...backup, smtp_port: Number(event.target.value) })} /></FormControl><FormControl><FormLabel>From</FormLabel><Input value={backup.email_from || ""} onChange={(event) => setBackup({ ...backup, email_from: event.target.value })} /></FormControl><FormControl><FormLabel>To</FormLabel><Input value={backup.email_to || ""} onChange={(event) => setBackup({ ...backup, email_to: event.target.value })} /></FormControl></SimpleGrid>}
             <HStack wrap="wrap"><Button colorScheme="primary" onClick={() => saveBackup.mutate()} isLoading={saveBackup.isLoading}>Save backup settings</Button><Button variant="outline" onClick={() => createBackup.mutate()} isLoading={createBackup.isLoading}>Back up now</Button></HStack>
-            <Box pt={4} borderTopWidth="1px" borderColor="var(--panel-border)"><Text fontWeight="700">Validate backup for offline recovery</Text><Alert mt={2} status="warning"><AlertIcon />Online restore is disabled to protect active data. Stop all writers and use the documented isolated offline recovery procedure. Validation does not restore data.</Alert><HStack mt={3} wrap="wrap"><Input aria-label="Backup archive" p={1.5} type="file" accept=".zip" maxW="420px" isDisabled={validating} onChange={(event) => { setRestoreFile(event.target.files?.[0] || null); setValidation(null); }} /><Button onClick={validateRestore} isLoading={validating} isDisabled={!restoreFile}>Validate</Button></HStack>{validation && <Alert mt={3} status="success"><AlertIcon />Archive validation passed. Offline recovery is still required.</Alert>}</Box>
+            <Box pt={4} borderTopWidth="1px" borderColor="var(--panel-border)"><Text fontWeight="700">Validate backup for offline recovery</Text><Alert mt={2} status="warning"><AlertIcon />Online restore is disabled to protect active data. Stop all writers and use the documented isolated offline recovery procedure. Validation does not restore data.</Alert><HStack mt={3} wrap="wrap"><FormControl><FormLabel>Upload Backup</FormLabel><Input aria-label="Upload Backup" p={1.5} type="file" multiple maxW="420px" isDisabled={validating} onChange={(event) => { setValidation(null); const files = Array.from(event.target.files || []); setRestoreFiles(files); void validateRestore(files); }} /></FormControl></HStack>{restoreFiles.length > 0 && <Text mt={2} role="status">{restoreFiles.length > 1 ? `Split backup • ${restoreFiles.length} parts` : "Complete backup"} • {(restoreFiles.reduce((sum, file) => sum + file.size, 0) / 1024 ** 2).toFixed(1)} MB{validating ? " • Validating…" : ""}</Text>}{validation && <Alert mt={3} status="success"><AlertIcon />Archive validation passed. Offline recovery is still required.</Alert>}</Box>
           </Stack>}
         </Section>
         <Section id="branding" title="Branding" description="Owner-controlled name, logo, favicon, login title, and description.">

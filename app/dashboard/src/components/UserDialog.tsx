@@ -587,7 +587,7 @@ export const UserDialog: FC<UserDialogProps> = () => {
               key as "proxies" | "username" | "data_limit" | "expire",
               {
                 type: "custom",
-                message: String(fields[key]),
+                message: localizedApiError(err),
               }
             );
           });

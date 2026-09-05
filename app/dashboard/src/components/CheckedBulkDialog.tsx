@@ -114,7 +114,7 @@ export const CheckedBulkDialog: FC<Props> = ({ users, action, isOpen, onClose, o
         {preview && <Alert status={selected.includes("delete") ? "error" : "info"} role="status"><AlertDescription>
           {preview.user_count} users · Traffic {preview.traffic_change.toLocaleString()} bytes · Duration {preview.duration_change_days} days · Cost {preview.cost_toman.toLocaleString()} Toman
         </AlertDescription></Alert>}
-        {result && <Box role="status" aria-live="polite" p={3} borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"><Text fontWeight="700">Success {result.success} · Failed {result.failed}</Text><Stack mt={2} maxH="140px" overflowY="auto">{result.results.filter((item) => item.status === "FAILED").map((item) => <Text key={item.user_id} fontSize="xs" dir="ltr">{item.username}: {item.reason}</Text>)}</Stack></Box>}
+        {result && <Box role="status" aria-live="polite" p={3} borderWidth="1px" borderColor="var(--panel-border)" borderRadius="10px"><Text fontWeight="700">Success {result.success} · Failed {result.failed}</Text><Stack mt={2} maxH="140px" overflowY="auto">{result.results.filter((item) => item.status === "FAILED").map((item) => <Text key={item.user_id} fontSize="xs" dir="ltr">{item.username}: {localizedApiError({ data: { detail: { code: item.reason } } })}</Text>)}</Stack></Box>}
       </Stack></ModalBody>
       <ModalFooter gap={2}><Button variant="ghost" onClick={onClose} isDisabled={busy}>{result ? "Close" : "Cancel"}</Button><Button colorScheme={selected.includes("delete") ? "red" : "primary"} onClick={execute} isLoading={busy} isDisabled={!valid || !preview || previewKey !== payloadKey || !!result}>Apply to checked users</Button></ModalFooter>
     </ModalContent>

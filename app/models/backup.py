@@ -54,3 +54,5 @@ class BackupValidationResponse(BaseModel):
     valid: bool
     manifest: dict
     validation_token: str
+    size_bytes: int = 0
+    part_count: int = 1

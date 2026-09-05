@@ -1,6 +1,5 @@
 from datetime import datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 
@@ -15,6 +14,7 @@ from app.models.backup import (
     BackupValidationResponse,
 )
 from app.utils import admin_hierarchy, responses, stage11_operations
+from app.utils.backup_upload import BackupUploadError, complete_upload
 from config import SQLALCHEMY_DATABASE_URL, STAGE11_BACKUP_SPOOL
 
 
@@ -96,31 +96,27 @@ def create_backup(db: Session = Depends(get_db), actor: Admin = Depends(Admin.ge
     return _artifact(_create(db, datetime.utcnow().strftime("%Y%m%dT%H%M%S%f")))
 
 
-def _save_upload(upload: UploadFile) -> Path:
-    suffix = ".panel-backup.zip"
-    with NamedTemporaryFile(prefix="panel-restore-", suffix=suffix, delete=False) as target:
-        total = 0
-        while chunk := upload.file.read(1024 * 1024):
-            total += len(chunk)
-            if total > MAX_RESTORE_BYTES:
-                target.close()
-                Path(target.name).unlink(missing_ok=True)
-                raise HTTPException(status_code=413, detail={"code": "backup_too_large", "message": "Backup exceeds 2 GiB"})
-            target.write(chunk)
-        return Path(target.name)
-
-
 @router.post("/validate", response_model=BackupValidationResponse)
-def validate_backup(backup: UploadFile = File(...), db: Session = Depends(get_db), actor: Admin = Depends(Admin.get_current)):
+def validate_backup(
+    backup: UploadFile | None = File(None),
+    backups: list[UploadFile] | None = File(None),
+    db: Session = Depends(get_db), actor: Admin = Depends(Admin.get_current),
+):
     _owner(db, actor)
-    path = _save_upload(backup)
     try:
-        manifest = stage11_operations.validate_panel_backup(path)
-        return BackupValidationResponse(valid=True, manifest=manifest, validation_token=stage11_operations.archive_sha256(path))
+        if backup is not None and backups:
+            raise BackupUploadError("backup_mixed_sets")
+        with complete_upload([backup] if backup is not None else backups, max_bytes=MAX_RESTORE_BYTES) as complete:
+            manifest = stage11_operations.validate_panel_backup(complete.path)
+            return BackupValidationResponse(
+                valid=True, manifest=manifest, validation_token=complete.sha256,
+                size_bytes=complete.size_bytes, part_count=complete.part_count,
+            )
+    except BackupUploadError as exc:
+        raise HTTPException(status_code=413 if exc.code == "backup_too_large" else 422,
+                            detail={"code": exc.code, **exc.details}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": str(exc), "message": "Invalid backup archive"}) from exc
-    finally:
-        path.unlink(missing_ok=True)
 
 
 @router.post("/restore")

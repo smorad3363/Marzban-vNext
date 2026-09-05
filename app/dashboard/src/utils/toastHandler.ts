@@ -1,6 +1,6 @@
 import { CreateToastFnReturn } from "@chakra-ui/react";
 import { UseFormReturn } from "react-hook-form";
-import { localizedApiError } from "./apiError";
+import { localizedApiError, safeUserMessage } from "./apiError";
 
 export const generateErrorMessage = (
   e: any,
@@ -11,7 +11,7 @@ export const generateErrorMessage = (
     const detail = e.response._data.detail;
     if (form && detail && typeof detail === "object" && detail.fields) {
       Object.entries(detail.fields).forEach(([field, message]) =>
-        form.setError(field, { message: String(message) })
+        form.setError(field, { message: safeUserMessage(message) || localizedApiError(e) })
       );
       return;
     }

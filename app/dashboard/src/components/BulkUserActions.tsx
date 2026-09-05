@@ -454,7 +454,7 @@ const BulkActionDialog: FC<BulkActionDialogProps> = ({
                     .slice(0, 20)
                     .map((target) => (
                       <Text key={target.target_id} fontSize="xs" dir="ltr">
-                        {target.target_username}: {target.status}{target.error_code ? ` (${target.error_code})` : ""}
+                        {target.target_username}: {target.error_code ? localizedApiError({ data: { detail: { code: target.error_code } } }) : target.status}
                       </Text>
                     ))}
                 </Stack>
