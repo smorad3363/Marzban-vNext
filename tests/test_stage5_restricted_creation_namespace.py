@@ -432,12 +432,18 @@ def test_seat_plan_renewal_charges_exact_cost_once_on_retry(db, monkeypatch):
     tag, host = _network(session, monkeypatch)
     admin, settings = _admin(session, "seat-plan", billing_mode="SEAT_CREDIT", capacity=10)
     admin.role_id = admin_hierarchy.ROLE_IDS[admin_hierarchy.SUPER_ADMIN]
+    settings.user_creation_mode_id = 2  # PLAN_ONLY; Form-only accounts cannot use Plans.
+    owner, _ = _admin(session, "plan-owner")
+    owner.is_sudo = True
+    owner.role_id = admin_hierarchy.ROLE_IDS[admin_hierarchy.OWNER]
+    session.add(SystemOwner(id=1, admin_id=owner.id))
     session.commit()
     plan = admin_plans.create_plan(
         session,
-        admin,
+        owner,
         PlanCreate(
             name="two-seat",
+            allowed_admin_ids=[admin.id],
             version=PlanVersionInput(
                 data_limit=1024,
                 duration_days=30,
