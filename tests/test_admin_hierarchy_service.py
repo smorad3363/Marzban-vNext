@@ -192,16 +192,26 @@ def test_used_traffic_parent_selects_child_mode_and_delegates_bounded_creation(d
 
     parent_settings.user_creation_mode_id = admin_hierarchy.USER_CREATION_MODE_IDS[admin_hierarchy.FREE_FORM]
     parent_settings.can_manage_plans = True
+    with pytest.raises(admin_hierarchy.HierarchyError) as owner_only:
+        admin_hierarchy.configure_child_user_creation_access(
+            db,
+            actor=parent,
+            parent=parent,
+            child_settings=child_settings,
+            mode=admin_hierarchy.FREE_FORM,
+            can_manage_plans=True,
+        )
+    assert owner_only.value.code == "plan_management_owner_only"
     admin_hierarchy.configure_child_user_creation_access(
         db,
         actor=parent,
         parent=parent,
         child_settings=child_settings,
         mode=admin_hierarchy.FREE_FORM,
-        can_manage_plans=True,
+        can_manage_plans=False,
     )
     assert child_settings.user_creation_mode_id == admin_hierarchy.USER_CREATION_MODE_IDS[admin_hierarchy.FREE_FORM]
-    assert child_settings.can_manage_plans is True
+    assert child_settings.can_manage_plans is False
 
 
 def test_manual_freeze_request_requires_human_reason():

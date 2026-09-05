@@ -9,10 +9,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
-from app.db.models import TelegramOutbox
+from app.db.models import BackupSettings, TelegramOutbox
+from app.models.backup import BackupSettingsUpdate
 from app.utils.stage11_operations import (decrypt_backup, dispatch_outbox,
                                           encrypt_backup, enqueue_outbox, now,
                                           purge_outbox, telegram_parts,
+                                          update_backup_settings,
                                           validate_panel_backup)
 
 
@@ -122,3 +124,32 @@ def test_panel_archive_manifest_checksum_and_transport_split(tmp_path):
         bundle.writestr("manifest.json", json.dumps(manifest))
     with pytest.raises(ValueError, match="backup_checksum_mismatch"):
         validate_panel_backup(archive)
+
+
+def test_backup_settings_keep_redacted_secrets_on_update():
+    db = session()
+    db.add(BackupSettings(
+        id=1,
+        destination="TELEGRAM_EMAIL",
+        telegram_bot_token="secret-token",
+        telegram_chat_id="1234",
+        smtp_host="smtp.example.test",
+        smtp_port=587,
+        smtp_password="secret-password",
+        email_from="from@example.test",
+        email_to="to@example.test",
+    ))
+    db.commit()
+
+    updated = update_backup_settings(db, BackupSettingsUpdate(
+        enabled=True,
+        destination="TELEGRAM_EMAIL",
+        telegram_chat_id="1234",
+        smtp_host="smtp.example.test",
+        smtp_port=587,
+        email_from="from@example.test",
+        email_to="to@example.test",
+    ))
+
+    assert updated.telegram_bot_token == "secret-token"
+    assert updated.smtp_password == "secret-password"

@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 BackupDestination = Literal["LOCAL", "TELEGRAM", "EMAIL", "TELEGRAM_EMAIL"]
@@ -21,15 +21,6 @@ class BackupSettingsUpdate(BaseModel):
     smtp_use_tls: bool = True
     email_from: Optional[str] = Field(default=None, max_length=320)
     email_to: Optional[str] = Field(default=None, max_length=320)
-
-    @model_validator(mode="after")
-    def validate_destinations(self):
-        if "TELEGRAM" in self.destination and not (self.telegram_bot_token and self.telegram_chat_id):
-            raise ValueError("Telegram destination requires bot token and chat ID")
-        if "EMAIL" in self.destination and not (self.smtp_host and self.smtp_port and self.email_from and self.email_to):
-            raise ValueError("Email destination requires SMTP host/port and From/To")
-        return self
-
 
 class BackupSettingsResponse(BaseModel):
     enabled: bool

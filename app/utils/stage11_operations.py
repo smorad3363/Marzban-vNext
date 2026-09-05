@@ -192,7 +192,16 @@ def settings_payload(row: BackupSettings) -> dict:
 
 def update_backup_settings(db: Session, values) -> BackupSettings:
     row = backup_settings(db)
-    for field, value in values.model_dump().items():
+    updates = values.model_dump()
+    merged = {
+        field: (getattr(row, field) if field in {"telegram_bot_token", "smtp_password"} and value is None else value)
+        for field, value in updates.items()
+    }
+    if "TELEGRAM" in merged["destination"] and not (merged["telegram_bot_token"] and merged["telegram_chat_id"]):
+        raise ValueError("Telegram destination requires bot token and chat ID")
+    if "EMAIL" in merged["destination"] and not (merged["smtp_host"] and merged["smtp_port"] and merged["email_from"] and merged["email_to"]):
+        raise ValueError("Email destination requires SMTP host/port and From/To")
+    for field, value in updates.items():
         if field in {"telegram_bot_token", "smtp_password"} and value is None:
             continue
         setattr(row, field, value)

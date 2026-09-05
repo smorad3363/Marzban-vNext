@@ -329,6 +329,7 @@ class UserUsageResetResponse(BaseModel):
 
 
 class UserResponse(User):
+    id: int
     username: str
     status: UserStatus
     used_traffic: Optional[int]

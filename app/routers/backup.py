@@ -50,7 +50,11 @@ def get_settings(db: Session = Depends(get_db), actor: Admin = Depends(Admin.get
 @router.put("/settings", response_model=BackupSettingsResponse)
 def put_settings(values: BackupSettingsUpdate, db: Session = Depends(get_db), actor: Admin = Depends(Admin.get_current)):
     _owner(db, actor)
-    return stage11_operations.settings_payload(stage11_operations.update_backup_settings(db, values))
+    try:
+        updated = stage11_operations.update_backup_settings(db, values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "invalid_backup_destination", "message": str(exc)}) from exc
+    return stage11_operations.settings_payload(updated)
 
 
 @router.get("", response_model=list[BackupArtifactResponse])
