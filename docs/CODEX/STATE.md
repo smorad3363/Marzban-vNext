@@ -18,6 +18,7 @@ status: COMPLETE_RELEASED_V5.2.0
 - Email/SMTP implementation and settings were not changed or exercised. Online restore remains intentionally offline-only for data safety. No production data was accessed.
 - Exact Fresh Install, Upgrade and Rollback procedures: [[RELEASE_v5.2.0]]. Final report: [[FINAL_REPORT]].
 - Publication note: upstream-owned package `ghcr.io/smorad3363/marzban` denied this repository's `write_package`; nothing was overwritten. Independent package `marzban-vnext` is the supported release path. Private source/package require `repo` and `read:packages` authentication.
+- Cleanup: disposable release Docker-in-Docker lab and browser proxy were removed after evidence capture; retained Core-review MySQL `26.7.0` container was returned to stopped state. No production resources were changed.
 - Exact next action: none. For a new task, start from this section and `git status`; do not rerun completed release checks.
 - Blocker: none.
 
