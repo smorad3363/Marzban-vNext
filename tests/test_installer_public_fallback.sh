@@ -4,6 +4,10 @@ set -eo pipefail
 source scripts/marzban.sh
 set -u
 
+help_output=$(TERM=xterm bash -c "$(cat scripts/marzban.sh)" @ help)
+grep -q "Usage:" <<< "$help_output"
+grep -q "install" <<< "$help_output"
+
 resolved="$CLI_RELEASE_VERSION"
 
 docker() {

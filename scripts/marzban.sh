@@ -2306,7 +2306,7 @@ usage() {
     echo
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+if [[ -z "${BASH_SOURCE[0]:-}" || "${BASH_SOURCE[0]}" == "$0" ]]; then
 case "$1" in
     up)
         shift; up_command "$@";;
