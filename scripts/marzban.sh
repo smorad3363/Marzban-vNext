@@ -14,8 +14,9 @@ LAST_XRAY_CORES=10
 # Fork configuration
 # Override at runtime, e.g. MARZBAN_GITHUB_REPO=another-user/Marzban marzban install
 # =============================================================================
-MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban}"
-MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-master}"
+CLI_RELEASE_VERSION="v5.2.0"
+MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban-vNext}"
+MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-vnext-ui}"
 MARZBAN_SCRIPTS_PATH="${MARZBAN_SCRIPTS_PATH:-scripts/marzban.sh}"
 MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban}"
 MYSQL_TARGET_VERSION="26.7.0"
@@ -27,6 +28,15 @@ MARZBAN_FILES_URL_PREFIX="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REP
 MARZBAN_SCRIPT_URL="https://github.com/${MARZBAN_GITHUB_REPO}/raw/${MARZBAN_GITHUB_BRANCH}/${MARZBAN_SCRIPTS_PATH}"
 MARZBAN_RELEASES_API="https://api.github.com/repos/${MARZBAN_GITHUB_REPO}/releases"
 
+github_download() {
+    local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+    if [ -n "$token" ]; then
+        curl --header "Authorization: Bearer $token" "$@"
+    else
+        curl "$@"
+    fi
+}
+
 is_release_version() {
     [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]
 }
@@ -36,8 +46,8 @@ is_immutable_sha_image() {
 }
 
 latest_published_version() {
-    curl -fsSL "${MARZBAN_RELEASES_API}?per_page=100" 2>/dev/null |
-        jq -r '[.[] | select(.draft == false)][0].tag_name // empty'
+    github_download -fsSL "${MARZBAN_RELEASES_API}?per_page=100" 2>/dev/null |
+        jq -r '[.[] | select(.draft == false and .prerelease == false)][0].tag_name // empty'
 }
 
 resolve_requested_version() {
@@ -198,7 +208,7 @@ install_marzban_script_from_repo() {
     script_url="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/${script_ref}/${MARZBAN_SCRIPTS_PATH}"
     temp_script=$(mktemp)
     colorized_echo blue "Installing marzban script from ${MARZBAN_GITHUB_REPO}@${script_ref}"
-    if ! curl -fsSL "$script_url" -o "$temp_script"; then
+    if ! github_download -fsSL "$script_url" -o "$temp_script"; then
         rm -f "$temp_script"
         colorized_echo red "Could not download marzban script from ${script_ref}."
         return 1
@@ -246,7 +256,7 @@ version_command() {
     command -v yq >/dev/null 2>&1 || { colorized_echo red "yq is required."; exit 1; }
 
     local cli_version configured_image container_id runtime_version running_image digest
-    cli_version=$(cat "$CLI_VERSION_FILE" 2>/dev/null || echo "unknown")
+    cli_version="$CLI_RELEASE_VERSION"
     configured_image=$(configured_service_image marzban)
     container_id=$(running_service_container marzban)
     runtime_version=$(runtime_app_version || echo "unavailable")
@@ -263,6 +273,12 @@ version_command() {
     echo "Configured Docker image: ${configured_image}"
     echo "Running Docker image: ${running_image}"
     echo "Immutable image digest: ${digest}"
+    local mysql_id mysql_version
+    mysql_id=$(running_service_container mysql)
+    mysql_version=$(mysql_upgrade_server_version "$mysql_id" 2>/dev/null || echo "unavailable")
+    echo "Configured MySQL image: $(configured_service_image mysql)"
+    echo "Runtime MySQL version: ${mysql_version}"
+    verify_version_integrity "$cli_version"
 }
 
 verify_version_integrity() {
@@ -285,6 +301,14 @@ verify_version_integrity() {
     [ "$running_image" = "$expected_image" ] || { colorized_echo red "Version integrity failed: running image is ${running_image}, expected ${expected_image}."; return 1; }
     [ "$runtime_version" = "${expected_version#v}" ] || { colorized_echo red "Version integrity failed: runtime is ${runtime_version}, expected ${expected_version#v}."; return 1; }
     [ "$cli_version" = "$expected_version" ] || { colorized_echo red "Version integrity failed: CLI is ${cli_version}, expected ${expected_version}."; return 1; }
+    local installed_cli_version mysql_id mysql_version
+    installed_cli_version=$(sed -n 's/^CLI_RELEASE_VERSION="\([^"]*\)"$/\1/p' /usr/local/bin/marzban)
+    [ "$installed_cli_version" = "$expected_version" ] || { colorized_echo red "Version integrity failed: installed CLI content does not match ${expected_version}."; return 1; }
+    mysql_preflight || return 1
+    mysql_id=$(running_service_container mysql)
+    [ -n "$mysql_id" ] || { colorized_echo red "Version integrity failed: MySQL is not running."; return 1; }
+    mysql_version=$(mysql_upgrade_server_version "$mysql_id" 2>/dev/null | tr -d '\r[:space:]' || true)
+    [ "$mysql_version" = "$MYSQL_TARGET_VERSION" ] || { colorized_echo red "Version integrity failed: MySQL runtime is ${mysql_version}, expected ${MYSQL_TARGET_VERSION}."; return 1; }
     [ -n "$digest" ] || { colorized_echo red "Version integrity failed: immutable image digest is unavailable."; return 1; }
     colorized_echo green "Version integrity verified for ${expected_version}: ${digest}"
 }
@@ -647,7 +671,8 @@ remove_backup_service() {
 
 backup_command() {
     local backup_dir="$APP_DIR/backup"
-    local temp_dir="/tmp/marzban_backup"
+    local temp_dir
+    temp_dir=$(mktemp -d /tmp/marzban_backup.XXXXXX)
     local timestamp=$(date +"%Y%m%d%H%M%S")
     local backup_file="$backup_dir/backup_$timestamp.tar.gz"
     local error_messages=()
@@ -660,9 +685,7 @@ backup_command() {
         install_package rsync
     fi
 
-    rm -rf "$backup_dir"
-    mkdir -p "$backup_dir"
-    mkdir -p "$temp_dir"
+    install -d -m 700 "$backup_dir"
 
     if [ -f "$ENV_FILE" ]; then
         while IFS='=' read -r key value; do
@@ -730,7 +753,7 @@ backup_command() {
 
     cp "$APP_DIR/.env" "$temp_dir/" 2>>"$log_file"
     cp "$APP_DIR/docker-compose.yml" "$temp_dir/" 2>>"$log_file"
-    rsync -av --exclude 'xray-core' --exclude 'mysql' "$DATA_DIR/" "$temp_dir/marzban_data/" >>"$log_file" 2>&1
+    rsync -av --exclude 'xray-core' --exclude 'mysql' --exclude 'mysql-*' "$DATA_DIR/" "$temp_dir/marzban_data/" >>"$log_file" 2>&1
 
     if ! tar -czf "$backup_file" -C "$temp_dir" .; then
         error_messages+=("Failed to create backup archive.")
@@ -741,8 +764,9 @@ backup_command() {
 
     if [ ${#error_messages[@]} -gt 0 ]; then
         send_backup_error_to_telegram "${error_messages[*]}" "$log_file"
-        return
+        return 1
     fi
+    chmod 600 "$backup_file"
     colorized_echo green "Backup created: $backup_file"
     send_backup_to_telegram "$backup_file"
 }
@@ -879,6 +903,7 @@ install_marzban() {
         FILES_URL_PREFIX="$MARZBAN_FILES_URL_PREFIX"
     fi
 
+    umask 077
     mkdir -p "$DATA_DIR"
     mkdir -p "$APP_DIR"
 
@@ -944,7 +969,7 @@ EOF
 
         # Modify .env file
         colorized_echo blue "Fetching .env file"
-        curl -sL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
+        github_download -fsSL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
 
         # Comment out the SQLite line
         sed -i 's~^\(SQLALCHEMY_DATABASE_URL = "sqlite:////var/lib/marzban/db.sqlite3"\)~#\1~' "$APP_DIR/.env"
@@ -1051,7 +1076,7 @@ EOF
 
         # Modify .env file
         colorized_echo blue "Fetching .env file"
-        curl -sL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
+        github_download -fsSL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
 
         # Comment out the SQLite line
         sed -i 's~^\(SQLALCHEMY_DATABASE_URL = "sqlite:////var/lib/marzban/db.sqlite3"\)~#\1~' "$APP_DIR/.env"
@@ -1101,7 +1126,7 @@ EOF
 
 
         colorized_echo blue "Fetching .env file"
-        curl -sL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
+        github_download -fsSL "$FILES_URL_PREFIX/.env.example" -o "$APP_DIR/.env"
 
         sed -i 's/^# \(XRAY_JSON = .*\)$/\1/' "$APP_DIR/.env"
         sed -i 's/^# \(SQLALCHEMY_DATABASE_URL = .*\)$/\1/' "$APP_DIR/.env"
@@ -1117,7 +1142,7 @@ EOF
     fi
 
     colorized_echo blue "Fetching xray config file"
-    curl -sL "$FILES_URL_PREFIX/xray_config.json" -o "$DATA_DIR/xray_config.json"
+    github_download -fsSL "$FILES_URL_PREFIX/xray_config.json" -o "$DATA_DIR/xray_config.json"
     colorized_echo green "File saved in $DATA_DIR/xray_config.json"
 
     colorized_echo green "Marzban's files downloaded successfully"
@@ -1237,6 +1262,10 @@ prompt_for_marzban_password() {
         MYSQL_PASSWORD=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20)
         colorized_echo green "A secure password has been generated automatically."
     fi
+    if [[ ! "$MYSQL_PASSWORD" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        colorized_echo red "Database password must contain only letters, numbers, underscore or hyphen; press Enter for a generated password."
+        exit 1
+    fi
     colorized_echo green "This password will be recorded in the .env file for future use."
 
     # Пауза 3 секунды перед продолжением
@@ -1248,7 +1277,7 @@ install_command() {
 
     # Default values
     database_type="mysql"
-    marzban_version="latest"
+    marzban_version="$CLI_RELEASE_VERSION"
     marzban_version_set="false"
 
     # Parse options
@@ -1291,12 +1320,8 @@ install_command() {
 
     # Check if marzban is already installed
     if is_marzban_installed; then
-        colorized_echo red "Marzban is already installed at $APP_DIR"
-        read -p "Do you want to override the previous installation? (y/n) "
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            colorized_echo red "Aborted installation"
-            exit 1
-        fi
+        colorized_echo red "Installation already exists at $APP_DIR. Use marzban update; install never overwrites existing configuration."
+        exit 1
     fi
     detect_os
     if ! command -v jq >/dev/null 2>&1; then
@@ -1313,7 +1338,6 @@ install_command() {
     fi
     detect_compose
     marzban_version=$(resolve_requested_version "$marzban_version") || exit 1
-    install_marzban_script_from_repo "$marzban_version"
     # Function to check if a version exists in the GitHub releases
     check_version_exists() {
         local version=$1
@@ -1323,7 +1347,7 @@ install_command() {
         fi
 
         # Fetch the release data from GitHub API
-        response=$(curl -s "$repo_url")
+        response=$(github_download -fsSL "$repo_url") || return 1
 
         # Check if the response contains the version tag
         if echo "$response" | jq -e ".[] | select(.tag_name == \"${version}\")" > /dev/null; then
@@ -1345,6 +1369,8 @@ install_command() {
         echo "Invalid version format. Please enter a valid version (e.g. v5.0.0-rc.9)"
         exit 1
     fi
+    install_marzban_script_from_repo "$marzban_version"
+    chmod 600 "$ENV_FILE"
     up_marzban
     if ! verify_marzban_health; then
         exit 1
@@ -1768,7 +1794,7 @@ update_command() {
         echo "  -h, --help       display this help message"
     }
 
-    local requested_version="latest"
+    local requested_version="$CLI_RELEASE_VERSION"
     while [[ "$#" -gt 0 ]]; do
         case "$1" in
             -v|--version)
@@ -1814,6 +1840,33 @@ update_command() {
 
     requested_version=$(resolve_requested_version "$requested_version") || exit 1
 
+    local current_version backup_path source_container
+    current_version=$(runtime_app_version | tr -d '\r[:space:]')
+    if ! is_release_version "$requested_version" || ! is_release_version "v${current_version}"; then
+        colorized_echo red "Production update requires a known runtime and exact release version."
+        exit 1
+    fi
+    if [ "$(printf '%s\n%s\n' "$current_version" "${requested_version#v}" | sort -V | head -n 1)" != "$current_version" ]; then
+        colorized_echo red "Application downgrade refused. Restore a matching offline database/configuration backup into an isolated installation."
+        exit 1
+    fi
+    exec 9>"$APP_DIR/.update.lock"
+    flock -n 9 || { colorized_echo red "Another update is running."; exit 1; }
+    source_container=$(running_service_container mysql)
+    [ -n "$source_container" ] || { colorized_echo red "A running MySQL source is required for the pre-update backup."; exit 1; }
+    backup_path=$(mktemp -d "$APP_DIR/pre-update.XXXXXXXX")
+    chmod 700 "$backup_path"
+    cp "$COMPOSE_FILE" "$ENV_FILE" "$backup_path/"
+    chmod 600 "$backup_path/.env"
+    $COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" stop marzban
+    if ! docker exec "$source_container" sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump --user=root --databases "$MYSQL_DATABASE" --single-transaction --routines --events --triggers --set-gtid-purged=OFF --hex-blob' > "$backup_path/database.sql" || [ ! -s "$backup_path/database.sql" ]; then
+        colorized_echo red "Pre-update backup failed; application remains stopped. No upgrade performed."
+        exit 1
+    fi
+    tar --exclude='./mysql' --exclude='./mysql-*' -czf "$backup_path/data.tar.gz" -C "$DATA_DIR" .
+    (cd "$backup_path" && sha256sum database.sql data.tar.gz > SHA256SUMS)
+    colorized_echo green "Pre-update recovery snapshot: $backup_path"
+
     local mysql_upgrade_state
     if mysql_upgrade_required_for_update; then
         colorized_echo yellow "MySQL ${MYSQL_UPDATE_SOURCE_VERSION} requires logical migration to ${MYSQL_TARGET_IMAGE}."
@@ -1845,11 +1898,9 @@ update_command() {
     up_marzban
 
     if ! verify_marzban_health; then
-        colorized_echo red "Update health check failed. Restoring previous image: ${previous_image}"
-        down_marzban
-        yq -i ".services.marzban.image = \"${previous_image}\"" "$COMPOSE_FILE"
-        up_marzban
-        colorized_echo red "Update failed and the previous application image was restored. Database migrations were not downgraded."
+        $COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" stop marzban
+        colorized_echo red "Update health check failed. Application left stopped; automatic image rollback is unsafe after migrations."
+        colorized_echo yellow "Preserved pre-update recovery snapshot: $backup_path"
         exit 1
     fi
 

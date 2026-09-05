@@ -10,7 +10,9 @@
 .git*
 .test-*
 .idea
-.venv
+.venv*
+output
+.playwright-cli
 .vscode
 Dockerfile*
 __pycache__

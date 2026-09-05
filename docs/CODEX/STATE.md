@@ -8,6 +8,20 @@ status: in_progress
 
 # Execution State
 
+## Live release checkpoint — installer work
+
+- Branch: `vnext-ui`; A+B+C committed as `a2ddd44cedc52d597bbf1c7f294feef9159e60f5`. Earlier reviewed checkpoints remain unchanged.
+- Current phase: D, installer safety implementation; E/F/G are NOT complete. `VERSION`/runtime/compose are prepared for `5.2.0`, not released.
+- A+B+C verification: 14 backup tests, 8 UI-error assertions, existing UX contract and TypeScript passed. No final consolidated suite yet.
+- Installer fixes in progress: correct fork/default ref, embedded CLI release and runtime/MySQL parity, fresh-install stamp ordering, refuse install overwrite and application downgrade, pre-update logical/file recovery snapshot, no unsafe automatic image rollback after migrations, preserve retained CLI backups and exclude raw versioned MySQL directories, safe password alphabet, authenticated private-repository downloads.
+- Docker build context excludes `.venv*`, `output`, and `.playwright-cli`. Email/SMTP remains unchanged.
+- Disposable Linux daemon: `marzban-release-lab-20260905` (`purpose=marzban-release-disposable`), Docker-in-Docker, no host socket or production data mounts. Bash/curl/jq/yq/util-linux/tar/rsync installed. MySQL image pull in progress. No actual fresh/upgrade success claimed yet.
+- Active build evidence: `output/playwright/release-build.log`, `output/playwright/release-docker-build.log`. Frontend production build and local `marzban-release-candidate:v5.2.0` Docker build started; check outcomes before rerunning. CLI changes after build snapshot require final image rebuild after verification fixes.
+- Exact next action: finish isolated actual installer/dispatch tests, including a v5.1.0 upgrade and failure/downgrade paths; complete release workflow gating, focused API/upload/browser verification, final immutable image build/runtime verification, then publication.
+- Publication: private origin `smorad3363/Marzban-vNext`; GitHub authenticated. Private-repository installation requires repository read authentication; registry auth still to verify. No release/tag/image has been published.
+- Dirty files: use `git status --short`; installer/version/docker-context changes and generated frontend build are task-owned. Preserve untracked `Final Autonomous Completion Prompt.md` locally, never publish it.
+- Blocker: none currently; work remains in progress.
+
 ## Final release execution — 2026-09-05
 
 - Current phase: A+B+C checkpoint — upload transport and UI safety complete; continue D installer/release integrity.

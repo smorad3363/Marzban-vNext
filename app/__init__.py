@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from config import ALLOWED_ORIGINS, DOCS, XRAY_SUBSCRIPTION_PATH
 
-__version__ = "5.1.0"
+__version__ = "5.2.0"
 
 app = FastAPI(
     title="Network Control API",
