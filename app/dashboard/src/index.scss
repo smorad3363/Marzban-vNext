@@ -1,14 +1,30 @@
 @import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@400;500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap");
 
 :root {
-  --panel-bg: #09130e;
-  --panel-surface: #111d17;
-  --panel-nested: #16251c;
-  --panel-border: #33483b;
-  --panel-border-strong: #4b6a57;
-  --panel-accent: #48d58b;
-  --panel-muted: #9aa9a0;
-  --panel-glow: rgba(34, 197, 94, 0.22);
+  --panel-bg: #f4f7fb;
+  --panel-surface: #ffffff;
+  --panel-nested: #edf2f8;
+  --panel-border: #d7deea;
+  --panel-border-strong: #b8c4d6;
+  --panel-accent: #2563eb;
+  --panel-muted: #64748b;
+  --panel-glow: rgba(37, 99, 235, 0.2);
+  --radius-panel: 16px;
+  --shadow-panel: 0 1px 2px rgba(15, 23, 42, .05), 0 14px 34px rgba(15, 23, 42, .08);
+  --motion-fast: 140ms;
+  --motion-page: 220ms;
+}
+
+.chakra-ui-dark {
+  --panel-bg: #0b1020;
+  --panel-surface: #111827;
+  --panel-nested: #172033;
+  --panel-border: #273449;
+  --panel-border-strong: #3b4b65;
+  --panel-accent: #60a5fa;
+  --panel-muted: #94a3b8;
+  --panel-glow: rgba(37, 99, 235, 0.26);
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, .28), 0 18px 42px rgba(0, 0, 0, .24);
 }
 
 html[data-panel-theme="black_gold"] {
@@ -35,10 +51,10 @@ html[data-panel-theme="black_gold"] {
 body {
   background-color: var(--panel-bg) !important;
   background-image:
-    linear-gradient(rgba(73, 214, 139, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(73, 214, 139, 0.025) 1px, transparent 1px),
-    radial-gradient(circle at 92% 0%, rgba(34, 185, 101, 0.15), transparent 33rem),
-    radial-gradient(circle at 10% 100%, rgba(166, 201, 87, 0.055), transparent 30rem);
+    linear-gradient(rgba(37, 99, 235, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.025) 1px, transparent 1px),
+    radial-gradient(circle at 92% 0%, rgba(37, 99, 235, 0.12), transparent 33rem),
+    radial-gradient(circle at 10% 100%, rgba(8, 145, 178, 0.07), transparent 30rem);
   background-size: 28px 28px, 28px 28px, auto, auto;
 }
 
@@ -84,7 +100,7 @@ html[data-panel-theme="black_gold"] .chakra-table th {
   border-color: var(--panel-border) !important;
 }
 
-html[data-panel-theme="black_gold"] .lab-shell::before {
+html[data-panel-theme="black_gold"] .operations-shell::before {
   background: linear-gradient(120deg, transparent 0 72%, rgba(215, 173, 84, 0.025) 72% 73%, transparent 73%);
 }
 
@@ -148,19 +164,19 @@ a,
   outline-offset: 2px;
 }
 
-.lab-shell::before {
+.operations-shell::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(120deg, transparent 0 72%, rgba(34, 185, 101, 0.025) 72% 73%, transparent 73%);
+  background: linear-gradient(120deg, transparent 0 72%, rgba(37, 99, 235, 0.035) 72% 73%, transparent 73%);
   z-index: -1;
 }
 
-.lab-grid {
+.operations-grid {
   background-image:
-    linear-gradient(rgba(72, 213, 139, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(72, 213, 139, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(96, 165, 250, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(96, 165, 250, 0.08) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 

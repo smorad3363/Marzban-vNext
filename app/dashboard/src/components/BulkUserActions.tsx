@@ -52,6 +52,7 @@ import {
   BulkUserOperation,
   User,
 } from "types/User";
+import { CheckedBulkDialog } from "./CheckedBulkDialog";
 
 type BulkUserActionsProps = {
   users: User[];
@@ -832,12 +833,12 @@ export const BulkUserActions: FC<BulkUserActionsProps> = ({
         </HStack>
       </Flex>
 
-      <BulkActionDialog
+      <CheckedBulkDialog
+        users={users}
         action={action}
         isOpen={actionDialog.isOpen}
         onClose={actionDialog.onClose}
         onSuccess={success}
-        isOwner={userData.role === "OWNER" || userData.is_sudo}
       />
       {userData.is_sudo && (
         <ExpiredCleanupDialog

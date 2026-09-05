@@ -1,13 +1,13 @@
 import { extendTheme } from "@chakra-ui/react";
 export const theme = extendTheme({
   config: {
-    initialColorMode: "dark",
-    useSystemColorMode: false,
+    initialColorMode: "system",
+    useSystemColorMode: true,
   },
   shadows: {
-    outline: "0 0 0 3px rgba(34, 197, 94, 0.24)",
-    panel: "0 1px 2px rgba(0, 0, 0, 0.32), 0 14px 34px rgba(0, 0, 0, 0.24)",
-    elevated: "0 22px 54px rgba(0, 0, 0, 0.42)",
+    outline: "0 0 0 3px rgba(37, 99, 235, 0.26)",
+    panel: "0 1px 2px rgba(15, 23, 42, 0.2), 0 14px 34px rgba(15, 23, 42, 0.16)",
+    elevated: "0 24px 58px rgba(2, 6, 23, 0.38)",
   },
   fonts: {
     heading: `Fira Sans, Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif`,
@@ -15,22 +15,22 @@ export const theme = extendTheme({
     mono: `Fira Code, IBM Plex Mono, Consolas, monospace`,
   },
   colors: {
-    "light-border": "#33483b",
+    "light-border": "#d7deea",
     surface: {
-      light: "#111d17",
-      dark: "#111d17",
+      light: "#ffffff",
+      dark: "#111827",
     },
     primary: {
-      50: "#eafbf1",
-      100: "#c9f4da",
-      200: "#9ce9ba",
-      300: "#67d994",
-      400: "#3fc978",
-      500: "#22b965",
-      600: "#168e4c",
-      700: "#126f3e",
-      800: "#115833",
-      900: "#0d482b",
+      50: "#eff6ff",
+      100: "#dbeafe",
+      200: "#bfdbfe",
+      300: "#93c5fd",
+      400: "#60a5fa",
+      500: "#3b82f6",
+      600: "#2563eb",
+      700: "#1d4ed8",
+      800: "#1e40af",
+      900: "#1e3a8a",
     },
     gold: {
       50: "#fff9e8",
@@ -51,11 +51,11 @@ export const theme = extendTheme({
   styles: {
     global: {
       body: {
-        bg: "#09130e",
-        color: "gray.100",
+        bg: "#f4f7fb",
+        color: "gray.900",
         lineHeight: "1.5",
         _dark: {
-          bg: "#09130e",
+          bg: "#0b1020",
           color: "gray.100",
         },
       },
@@ -84,24 +84,24 @@ export const theme = extendTheme({
     Card: {
       baseStyle: {
         container: {
-          bg: "#111d17",
-          color: "gray.100",
-          borderColor: "#33483b",
-          _dark: { bg: "#111d17", borderColor: "#33483b" },
+          bg: "#ffffff",
+          color: "gray.900",
+          borderColor: "#d7deea",
+          _dark: { bg: "#111827", color: "gray.100", borderColor: "#273449" },
         },
       },
     },
     Modal: {
       baseStyle: {
         dialog: {
-          bg: "#111d17",
-          color: "gray.100",
+          bg: "#ffffff",
+          color: "gray.900",
           borderWidth: "1px",
-          borderColor: "#33483b",
-          _dark: { bg: "#111d17", borderColor: "#33483b" },
+          borderColor: "#d7deea",
+          _dark: { bg: "#111827", color: "gray.100", borderColor: "#273449" },
         },
-        header: { borderColor: "#33483b", _dark: { borderColor: "#33483b" } },
-        footer: { borderColor: "#33483b", _dark: { borderColor: "#33483b" } },
+        header: { borderColor: "#d7deea", _dark: { borderColor: "#273449" } },
+        footer: { borderColor: "#d7deea", _dark: { borderColor: "#273449" } },
       },
     },
     Alert: {
@@ -115,14 +115,14 @@ export const theme = extendTheme({
     Select: {
       baseStyle: {
         field: {
-          bg: "#111d17",
-          color: "gray.100",
-          borderColor: "#475f50",
+          bg: "#ffffff",
+          color: "gray.900",
+          borderColor: "#b8c4d6",
           borderRadius: "6px",
           _dark: {
-            bg: "#111d17",
+            bg: "#111827",
             color: "gray.100",
-            borderColor: "#475f50",
+            borderColor: "#3b4b65",
             borderRadius: "6px",
           },
         },
@@ -135,7 +135,8 @@ export const theme = extendTheme({
     FormHelperText: {
       baseStyle: {
         fontSize: "xs",
-        color: "gray.400",
+        color: "gray.600",
+        _dark: { color: "gray.400" },
       },
     },
     FormLabel: {
@@ -146,7 +147,7 @@ export const theme = extendTheme({
         lineHeight: "1.7",
         whiteSpace: "normal",
         overflowWrap: "anywhere",
-        color: "gray.300",
+        color: "gray.700",
         _dark: { color: "gray.300" },
       },
     },
@@ -162,9 +163,9 @@ export const theme = extendTheme({
         },
         field: {
           borderRadius: "10px",
-          bg: "whiteAlpha.50",
-          color: "gray.100",
-          borderColor: "gray.600",
+          bg: "white",
+          color: "gray.900",
+          borderColor: "#b8c4d6",
           _focusVisible: {
             boxShadow: "none",
             borderColor: "primary.200",
@@ -172,6 +173,7 @@ export const theme = extendTheme({
           },
           _dark: {
             bg: "whiteAlpha.50",
+            color: "gray.100",
             borderColor: "gray.600",
             _disabled: {
               color: "gray.400",
@@ -196,12 +198,13 @@ export const theme = extendTheme({
     },
     Textarea: {
       baseStyle: {
-        bg: "whiteAlpha.50",
-        color: "gray.100",
-        borderColor: "gray.600",
+        bg: "white",
+        color: "gray.900",
+        borderColor: "#b8c4d6",
         lineHeight: "1.8",
         _placeholder: { color: "gray.500" },
         _focusVisible: { borderColor: "primary.300", boxShadow: "outline" },
+        _dark: { bg: "whiteAlpha.50", color: "gray.100", borderColor: "gray.600" },
       },
     },
     Table: {
@@ -214,48 +217,49 @@ export const theme = extendTheme({
           borderBottomColor: "#33483b",
         },
         th: {
-          background: "#16251c",
-          color: "gray.300",
+          background: "#edf2f8",
+          color: "gray.600",
           fontSize: "xs",
           letterSpacing: "0.04em",
-          borderColor: "#33483b !important",
-          borderBottomColor: "#33483b !important",
+          borderColor: "#d7deea !important",
+          borderBottomColor: "#d7deea !important",
           borderTop: "1px solid ",
-          borderTopColor: "#33483b !important",
+          borderTopColor: "#d7deea !important",
           _first: {
             borderInlineStart: "1px solid",
-            borderColor: "#33483b !important",
+            borderColor: "#d7deea !important",
           },
           _last: {
             borderInlineEnd: "1px solid",
-            borderColor: "#33483b !important",
+            borderColor: "#d7deea !important",
           },
           _dark: {
             borderColor: "gray.600 !important",
-            background: "#16251c",
+            background: "#172033",
           },
         },
         td: {
           transition: "background-color .12s ease-out",
           py: 4,
-          color: "gray.100",
-          borderColor: "#33483b",
-          borderBottomColor: "#33483b !important",
+          color: "gray.800",
+          borderColor: "#d7deea",
+          borderBottomColor: "#d7deea !important",
           _first: {
             borderInlineStart: "1px solid",
-            borderColor: "#33483b",
+            borderColor: "#d7deea",
             _dark: {
               borderColor: "gray.600",
             },
           },
           _last: {
             borderInlineEnd: "1px solid",
-            borderColor: "#33483b",
+            borderColor: "#d7deea",
             _dark: {
               borderColor: "gray.600",
             },
           },
           _dark: {
+            color: "gray.100",
             borderColor: "gray.600",
             borderBottomColor: "gray.600 !important",
           },

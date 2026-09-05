@@ -1,4 +1,6 @@
-import { createHashRouter } from "react-router-dom";
+import { Navigate, createHashRouter } from "react-router-dom";
+import { ReactNode } from "react";
+import useGetUser from "hooks/useGetUser";
 import { fetch } from "../service/http";
 import { getAuthToken } from "../utils/authStorage";
 import { Dashboard } from "./Dashboard";
@@ -7,12 +9,18 @@ import { Login } from "./Login";
 import { AuditLogs } from "./AuditLogs";
 import { DeviceLimits } from "./DeviceLimits";
 import { Plans } from "./Plans";
+import { Settings } from "./Settings";
 const fetchAdminLoader = () => {
     return fetch("/admin", {
         headers: {
             Authorization: `Bearer ${getAuthToken()}`,
         },
     });
+};
+const OwnerOnly = ({ children }: { children: ReactNode }) => {
+    const { userData, getUserIsPending } = useGetUser();
+    if (getUserIsPending) return null;
+    return userData.is_sudo || userData.role === "OWNER" ? <>{children}</> : <Navigate to="/" replace />;
 };
 export const router = createHashRouter([
     {
@@ -39,7 +47,13 @@ export const router = createHashRouter([
     },
     {
         path: "/plans/",
-        element: <Plans />,
+        element: <OwnerOnly><Plans /></OwnerOnly>,
+        errorElement: <Login />,
+        loader: fetchAdminLoader,
+    },
+    {
+        path: "/settings/",
+        element: <OwnerOnly><Settings /></OwnerOnly>,
         errorElement: <Login />,
         loader: fetchAdminLoader,
     },

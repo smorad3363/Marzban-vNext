@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" role="img" aria-label="Heisenberg Panel">
-  <defs><linearGradient id="g" x1="7" y1="4" x2="49" y2="52"><stop stop-color="#48D58B"/><stop offset="1" stop-color="#167548"/></linearGradient></defs>
-  <rect x="2" y="2" width="52" height="52" rx="8" fill="#07130E"/>
-  <rect x="5" y="5" width="46" height="46" rx="6" fill="url(#g)"/>
-  <path d="M9 16h38M16 9v38" stroke="#E8FFF2" stroke-opacity=".18"/>
-  <text x="10" y="14" fill="#E8FFF2" font-family="monospace" font-size="7" font-weight="700">2</text>
-  <text x="28" y="37" fill="#fff" font-family="monospace" font-size="25" font-weight="700" text-anchor="middle">He</text>
-  <text x="28" y="46" fill="#D8FFE8" font-family="monospace" font-size="5" font-weight="600" letter-spacing="1" text-anchor="middle">CONTROL</text>
-</svg>

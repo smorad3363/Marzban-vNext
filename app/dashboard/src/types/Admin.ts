@@ -247,3 +247,11 @@ export type BrandingResponse = {
   dashboard_theme: "heisenberg" | "black_gold";
   logo_url: string | null;
 };
+
+export type SystemBranding = {
+  panel_name: string;
+  login_title: string;
+  description: string | null;
+  logo_url: string | null;
+  favicon_url: string | null;
+};

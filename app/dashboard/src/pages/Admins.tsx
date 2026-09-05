@@ -254,7 +254,7 @@ export const Admins: FC = () => {
           <Box>
             <Text fontWeight="800">ساختار ادمین‌ها روی سرور فعال نشده است.</Text>
             <Text mt={1} fontSize="sm">تا فعال‌سازی، انتخاب پلن یا ساخت سفارشی ذخیره و اعمال نمی‌شود. روی سرور اجرا کنید:</Text>
-            <Code mt={2} dir="ltr" display="inline-block">marzban set-owner {userData.username}</Code>
+            <Text mt={2}>Use command-line administration to promote an Owner.</Text>
           </Box>
         </Alert>
       )}

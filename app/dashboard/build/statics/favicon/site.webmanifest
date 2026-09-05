@@ -1,9 +1,9 @@
 {
-    "name": "Heisenberg Panel",
-    "short_name": "Heisenberg",
+    "name": "Operations Console",
+    "short_name": "Console",
     "icons": [
         {
-            "src": "/statics/favicon/heisenberg-mark.svg",
+            "src": "/statics/favicon/operations-mark.svg",
             "sizes": "any",
             "type": "image/svg+xml"
         }

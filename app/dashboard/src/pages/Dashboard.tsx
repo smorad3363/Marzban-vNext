@@ -67,7 +67,7 @@ export const Dashboard: FC = () => {
   }, []);
   return (
     <AppShell>
-      <Card as="header" p={{ base: 4, md: 5 }} mb={3} bg="linear-gradient(145deg, var(--panel-surface), var(--panel-nested))" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
+      <Card as="header" p={{ base: 4, md: 5 }} mb={3} bg="linear-gradient(145deg, var(--panel-surface), var(--panel-nested))" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
       <HStack justify="space-between" align="center" flexWrap="wrap" gap={3}>
         <Box>
           <Text color="primary.300" fontSize="xs" fontWeight="800">مرکز کنترل</Text>
@@ -95,7 +95,7 @@ export const Dashboard: FC = () => {
         mt={3}
         w="full"
         minW={0}
-        bg="rgba(3, 9, 17, .76)"
+        bg="var(--panel-surface)"
         borderWidth="1px"
         borderColor="rgba(148, 163, 184, .14)"
         borderRadius="14px"

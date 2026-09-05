@@ -255,7 +255,7 @@ export const AdminFormDrawer: FC<Props> = ({ isOpen, admin, onClose }) => {
                   <Box>
                     <Text fontWeight="800">ساختار ادمین‌ها هنوز روی سرور فعال نشده است.</Text>
                     <Text mt={1} fontSize="sm">ابتدا روی سرور این دستور را اجرا کنید؛ سپس این فرم را دوباره باز کنید:</Text>
-                    <Code mt={2} dir="ltr" display="inline-block">marzban set-owner {"<username>"}</Code>
+                    <Text mt={2}>Use command-line administration to promote an Owner.</Text>
                   </Box>
                 </Alert>
               )}

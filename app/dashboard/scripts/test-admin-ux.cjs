@@ -59,14 +59,14 @@ assert.ok(drawer.includes("plan_prices: undefined"), "ordinary Admin edits must 
 assert.ok(drawer.includes('setQueriesData<ManagedAdminList | undefined>("admin-management"'), "saved Admin response must replace stale list cache before closing");
 assert.ok(drawer.includes("item.id === savedAdmin.id ? savedAdmin : item"), "Admin cache update must use the canonical saved record");
 assert.ok(drawer.includes('mode === "USED_TRAFFIC" ? "FREE_FORM" as const : "PLAN_ONLY" as const'), "billing mode must authoritatively choose custom or Plan-only creation");
-assert.ok(drawer.includes("hierarchy_enabled") && drawer.includes("marzban set-owner") && drawer.includes("!hierarchyReady"), "Admin form must fail closed until hierarchy initialization");
+assert.ok(drawer.includes("hierarchy_enabled") && drawer.includes("command-line administration") && drawer.includes("!hierarchyReady"), "Admin form must fail closed until hierarchy initialization");
 assert.ok(drawer.includes("تغییر سریع اعتبار"), "edit flow must expose a separate credit adjustment section");
 assert.ok(drawer.includes('/money/${operation}'), "credit adjustment must use the monetary ledger endpoint");
 assert.ok(drawer.includes("idempotency_key"), "credit adjustment must send an idempotency key");
 assert.ok(!admins.includes("<Modal"), "Admins page must not duplicate the shared Admin modal inline");
 assert.ok(admins.includes("<AdminFormDrawer"), "Admins page must use the shared Admin form");
 assert.ok(admins.includes("openAdminForm") && !admins.includes("canCreate, formDisclosure, searchParams"), "Admin create deep-link must not depend on an unstable disclosure object");
-assert.ok(admins.includes("hierarchy_enabled") && admins.includes("marzban set-owner {userData.username}"), "Admins page must explain required owner initialization");
+assert.ok(admins.includes("hierarchy_enabled") && admins.includes("command-line administration"), "Admins page must explain required owner initialization");
 assert.ok(!admins.includes("<AdminHierarchyPanel"), "Admins page must not render a second competing hierarchy list");
 assert.ok(admins.includes("colSpan={4}"), "Admin desktop list must stay limited to four purposeful data groups");
 assert.ok(admins.includes("statusMeta[item.account_status].background"), "Admin rows must expose status with both text and a distinct surface");

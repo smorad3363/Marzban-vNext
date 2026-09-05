@@ -6,21 +6,19 @@ export const BrandMark: FC<BoxProps> = (props) => (
     as="svg"
     viewBox="0 0 56 56"
     role="img"
-    aria-label="Heisenberg Panel"
+    aria-label="Operations Console"
     flexShrink={0}
     {...props}
   >
     <defs>
-      <linearGradient id="heisenberg-mark" x1="7" y1="4" x2="49" y2="52">
-        <stop stopColor="#48D58B" />
-        <stop offset="1" stopColor="#167548" />
+      <linearGradient id="operations-mark" x1="7" y1="4" x2="49" y2="52">
+        <stop stopColor="#2563EB" />
+        <stop offset="1" stopColor="#0891B2" />
       </linearGradient>
     </defs>
-    <rect x="2" y="2" width="52" height="52" rx="8" fill="#07130E" />
-    <rect x="5" y="5" width="46" height="46" rx="6" fill="url(#heisenberg-mark)" />
-    <path d="M9 16h38M16 9v38" stroke="#E8FFF2" strokeOpacity=".18" />
-    <text x="10" y="14" fill="#E8FFF2" fontFamily="monospace" fontSize="7" fontWeight="700">2</text>
-    <text x="28" y="37" fill="#FFFFFF" fontFamily="monospace" fontSize="25" fontWeight="700" textAnchor="middle">He</text>
-    <text x="28" y="46" fill="#D8FFE8" fontFamily="monospace" fontSize="5" fontWeight="600" letterSpacing="1" textAnchor="middle">CONTROL</text>
+    <rect x="2" y="2" width="52" height="52" rx="13" fill="#0B1020" />
+    <circle cx="28" cy="28" r="18" fill="none" stroke="url(#operations-mark)" strokeWidth="3" />
+    <path d="M13 31c9-10 22-13 31-5M17 41c6-12 15-19 27-21" fill="none" stroke="#67E8F9" strokeWidth="2.5" strokeLinecap="round" />
+    <circle cx="18" cy="20" r="3.5" fill="#F8FAFC" /><circle cx="40" cy="35" r="3.5" fill="#F8FAFC" />
   </Box>
 );

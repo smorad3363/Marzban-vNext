@@ -438,3 +438,14 @@ class BrandingUpdate(BaseModel):
 class BrandingResponse(BaseModel):
     dashboard_theme: Literal["heisenberg", "black_gold"] = "heisenberg"
     logo_url: Optional[str] = None
+
+
+class SystemBrandingUpdate(BaseModel):
+    panel_name: str = Field(min_length=1, max_length=80)
+    login_title: str = Field(min_length=1, max_length=120)
+    description: Optional[str] = Field(default=None, max_length=280)
+
+
+class SystemBrandingResponse(SystemBrandingUpdate):
+    logo_url: Optional[str] = None
+    favicon_url: Optional[str] = None

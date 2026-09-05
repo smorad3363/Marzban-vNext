@@ -99,10 +99,16 @@ type SystemStats = {
   outgoing_bandwidth_speed: number;
 };
 
+type BackupArtifact = {
+  period_key: string;
+  generation_status: string;
+  delivery_status: string;
+};
+
 const faNumber = (value: number) => value.toLocaleString("fa-IR");
 
 const Kpi: FC<{ label: string; value: string; detail: string; icon: ReactElement; fullMobile?: boolean }> = ({ label, value, detail, icon, fullMobile = false }) => (
-  <Card gridColumn={fullMobile ? { base: "span 2", sm: "auto" } : undefined} p={3.5} minH="118px" bg="var(--panel-surface)" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
+  <Card gridColumn={fullMobile ? { base: "span 2", sm: "auto" } : undefined} p={3.5} minH="118px" bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
     <HStack justify="space-between" align="start" gap={3}>
       <Box minW={0}>
         <Text color="gray.400" fontSize="xs" fontWeight="700">{label}</Text>
@@ -193,6 +199,11 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       },
     },
   );
+  const backups = useQuery<BackupArtifact[], Error>(
+    "dashboard-backup-status",
+    () => fetch("/owner/backups"),
+    { enabled: Boolean(isOwner && account.data), refetchInterval: 60000 },
+  );
   const data = query.data;
   const chartText = "#a8b0aa";
   const trafficModes = useMemo(
@@ -253,7 +264,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       )}
 
       <SimpleGrid columns={{ base: 2, xl: 5 }} gap={3}>
-        <Card p={3.5} minH="118px" gridColumn={{ base: "span 2", xl: "span 2" }} bg="linear-gradient(145deg, var(--panel-surface), var(--panel-nested))" color="gray.100" borderWidth="1px" borderColor="var(--panel-border-strong)" borderRadius="14px">
+        <Card p={3.5} minH="118px" gridColumn={{ base: "span 2", xl: "span 2" }} bg="linear-gradient(145deg, var(--panel-surface), var(--panel-nested))" color="inherit" borderWidth="1px" borderColor="var(--panel-border-strong)" borderRadius="14px">
           {account.isLoading ? <Skeleton h="90px" borderRadius="10px" /> : account.isError || !accountData ? (
             <Alert status="error" borderRadius="10px"><AlertIcon />وضعیت حساب بارگذاری نشد.</Alert>
           ) : (
@@ -290,7 +301,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       <Collapse in={desktopDetailsVisible || mobileDetailsOpen} animateOpacity={false}>
       <Stack spacing={3}>
       <SimpleGrid columns={{ base: 1, xl: 5 }} gap={3}>
-        <Card p={3.5} minW={0} gridColumn={{ xl: "span 3" }} bg="var(--panel-surface)" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
+        <Card p={3.5} minW={0} gridColumn={{ xl: "span 3" }} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
           <Box><Text as="h2" fontWeight="800">ترکیب وضعیت کاربران</Text><Text mt={1} color="gray.400" fontSize="xs">هر کاربر دقیقاً در یکی از وضعیت‌های زیر شمرده می‌شود.</Text></Box>
           {statusTotal === 0 ? <Text py={12} textAlign="center" color="gray.500">هنوز کاربری ثبت نشده است.</Text> : (
             <SimpleGrid columns={{ base: 1, md: 2 }} alignItems="center" gap={2} mt={2}>
@@ -307,7 +318,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
           )}
         </Card>
 
-        <Card p={3.5} minW={0} gridColumn={{ xl: "span 2" }} bg="var(--panel-surface)" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
+        <Card p={3.5} minW={0} gridColumn={{ xl: "span 2" }} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
           <HStack justify="space-between" align="start" gap={3}><Box><Text as="h2" fontWeight="800">آخرین فعالیت‌ها</Text><Text mt={1} color="gray.400" fontSize="xs">رخدادهای واقعی در محدوده مدیریتی شما</Text></Box><ClockIcon width={19} color="var(--panel-accent)" aria-hidden="true" /></HStack>
           {activity.isLoading ? <Stack mt={3}>{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} h="42px" borderRadius="9px" />)}</Stack> : activity.isError ? (
             <Text mt={4} color="red.300" fontSize="sm">فعالیت‌ها بارگذاری نشدند.</Text>
@@ -328,7 +339,7 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       </SimpleGrid>
 
       {trafficModes.length > 1 && (
-        <Card p={3.5} bg="var(--panel-surface)" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px" minW={0}>
+        <Card p={3.5} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px" minW={0}>
           <HStack justify="space-between" align="start" gap={3} flexWrap="wrap"><Box><Text as="h2" fontWeight="800">ترافیک به تفکیک نوع اعتبار</Text><Text mt={1} color="gray.400" fontSize="xs">فقط مدل‌هایی نمایش داده می‌شوند که مصرف یا حجم تعریف‌شده دارند.</Text></Box><Badge colorScheme="yellow">GB</Badge></HStack>
           <Box h={{ base: "190px", md: "220px" }} minW={0} dir="ltr" aria-label="نمودار ترافیک بر اساس نوع اعتبار"><Chart type="bar" height="100%" options={barOptions} series={[
             { name: "مصرف ثبت‌شده", data: trafficModes.map((item) => Number(((item.current_used_traffic ?? 0) / 1073741824).toFixed(2))) },
@@ -338,8 +349,8 @@ export const DashboardOverview: FC<Props> = ({ onCreateAdmin, onCreatePlan }) =>
       )}
 
       {isOwner && (
-        <Card p={3.5} bg="var(--panel-surface)" color="gray.100" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
-          <HStack justify="space-between" align="start" gap={3} mb={3}><Box><Text as="h2" fontWeight="800">منابع سرور</Text><Text mt={1} color="gray.400" fontSize="xs">اعداد زندهٔ سیستم؛ آمار کاربران و مصرف در این بخش تکرار نشده است.</Text></Box>{system.data?.version && <Badge colorScheme="green" dir="ltr">v{system.data.version}</Badge>}</HStack>
+        <Card p={3.5} bg="var(--panel-surface)" color="inherit" borderWidth="1px" borderColor="var(--panel-border)" borderRadius="14px">
+          <HStack justify="space-between" align="start" gap={3} mb={3}><Box><Text as="h2" fontWeight="800">منابع سرور</Text><Text mt={1} color="gray.400" fontSize="xs">اعداد زندهٔ سیستم؛ آمار کاربران و مصرف در این بخش تکرار نشده است.</Text></Box><HStack>{backups.data?.[0] && <Badge colorScheme={backups.data[0].generation_status === "SUCCESS" ? "blue" : "red"}>Backup {backups.data[0].generation_status}</Badge>}{system.data?.version && <Badge colorScheme="green" dir="ltr">v{system.data.version}</Badge>}</HStack></HStack>
           {system.isLoading ? <Skeleton h="105px" borderRadius="12px" /> : system.isError || !system.data ? <Text color="red.300" fontSize="sm">منابع سرور بارگذاری نشدند.</Text> : (
             <SimpleGrid columns={{ base: 1, md: 3 }} gap={2.5}>
               <ResourceMeter label="پردازنده" value={`${faNumber(Math.round(cpuPercent))}٪`} detail="مصرف لحظه‌ای CPU" percent={cpuPercent} icon={<CpuIcon />} />

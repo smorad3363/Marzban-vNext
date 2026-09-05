@@ -49,6 +49,7 @@ export type UsageReset = {
 };
 
 export type User = {
+  id: number;
   proxies: ProxyType;
   expire: number | null;
   data_limit: number | null;
@@ -160,4 +161,25 @@ export type BulkPreviewResponse = {
   selected_admin_ids: number[];
   resolved_target_count: number;
   sample_targets: string[];
+};
+
+export type BulkSelectionPreview = {
+  user_count: number;
+  traffic_change: number;
+  duration_change_days: number;
+  status_change: string | null;
+  cost_toman: number;
+  usernames: string[];
+};
+
+export type BulkSelectionResponse = {
+  operation_id: string;
+  success: number;
+  failed: number;
+  results: Array<{
+    user_id: number;
+    username: string;
+    status: "SUCCESS" | "FAILED";
+    reason: string | null;
+  }>;
 };

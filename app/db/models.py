@@ -1684,3 +1684,15 @@ class BackupSettings(Base):
     email_from = Column(String(320), nullable=True)
     email_to = Column(String(320), nullable=True)
     updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)
+
+
+class SystemBrandingSettings(Base):
+    __tablename__ = "system_branding_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    panel_name = Column(String(80), nullable=False, default="Operations Console", server_default="Operations Console")
+    login_title = Column(String(120), nullable=False, default="Secure operator access", server_default="Secure operator access")
+    description = Column(String(280), nullable=True)
+    logo_filename = Column(String(255), nullable=True)
+    favicon_filename = Column(String(255), nullable=True)
+    updated_at = Column(DateTime, nullable=False, default=utc_now_naive, onupdate=utc_now_naive)

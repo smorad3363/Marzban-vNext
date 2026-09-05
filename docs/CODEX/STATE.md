@@ -3,18 +3,17 @@ title: Codex Execution State
 tags:
   - marzban-vnext
   - execution-state
-status: core-complete
+status: complete
 ---
 
 # Execution State
 
-- Current phase: Core checkpoint
+- Current phase: Final publication
 - Phase status: Complete
-- Git HEAD: `c824e822a2f5e41d91b894aabd2a7b9c77a200d2`
-- Branch: `vnext-core`
-- Last checkpoint: Core phases 1-10 implemented; focused backend paths pass.
-- Files currently being changed: Core installer, database, policy, Access Group, pricing, bulk, device telemetry, backup/restore, tests, and project memory.
-- Completed action: Implemented deterministic release/version enforcement, pinned MySQL migration, dependency cleanup, commercial Plan/Access Group separation, centralized creation policy and Owner pricing, Owner-only Plan management with Admin quick-renew summaries, exact-selection bulk operations, verified telemetry recovery behavior, and integrated logical backup/restore.
-- Verification: `5 passed, 1 skipped` release contracts; `23 passed` Plan/Access Group/bulk/backup; `83 passed, 1 skipped` policy/billing/device/health; focused new bulk and backup archive tests pass; application compile and shell syntax pass.
-- Exact next action: Commit/tag `checkpoint-core-complete`, create `vnext-ui`, then perform white-label and UI redesign.
+- Branch: `vnext-ui`
+- Last checkpoint: Core and UI roadmaps complete; focused final verification complete.
+- Completed action: Implemented phases 1-13, including full white-label, Owner branding, premium responsive UI, grouped Owner Settings, exact checked-user bulk UI, Owner-only Plan navigation, light/dark behavior, and RTL/LTR support.
+- Verification: consolidated backend `115 passed, 3 skipped`; one stale Owner-only Plan contract corrected and its failed path rerun `1 passed`; branding `4 passed`; frontend build and three UI contract scripts pass; Playwright Owner/Admin visibility, white-label, console, desktop/mobile, and RTL/LTR checks pass; migration head is `b8d5f0a3c721`.
+- GitHub: authenticated as `smorad3363`; private target `https://github.com/smorad3363/Marzban-vNext` created as `origin`.
+- Exact next action: Commit/tag UI checkpoint, propagate the post-checkpoint Core fix to `vnext-core`, push both branches and all checkpoint tags, and set `vnext-ui` as default.
 - Blocker: None

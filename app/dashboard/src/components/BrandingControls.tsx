@@ -44,7 +44,7 @@ export const BrandingControls: FC<Props> = ({ theme, hasLogo }) => {
   return (
     <HStack px={2} spacing={2} justify="space-between">
       <ButtonGroup size="xs" isAttached variant="outline">
-        <Button aria-pressed={theme === "heisenberg"} variant={theme === "heisenberg" ? "solid" : "outline"} onClick={() => themeMutation.mutate("heisenberg")}>سبز</Button>
+        <Button aria-pressed={theme === "heisenberg"} variant={theme === "heisenberg" ? "solid" : "outline"} onClick={() => themeMutation.mutate("heisenberg")}>آبی</Button>
         <Button aria-pressed={theme === "black_gold"} variant={theme === "black_gold" ? "solid" : "outline"} colorScheme="yellow" onClick={() => themeMutation.mutate("black_gold")}>طلایی</Button>
       </ButtonGroup>
       <HStack spacing={1}>

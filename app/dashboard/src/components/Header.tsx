@@ -11,6 +11,7 @@ import {
   Spacer,
   Stack,
   Text,
+  useColorMode,
 } from "@chakra-ui/react";
 import {
   ArrowLeftOnRectangleIcon,
@@ -26,15 +27,19 @@ import {
   RectangleStackIcon,
   Bars3Icon,
   XMarkIcon,
+  MoonIcon,
+  SunIcon,
 } from "@heroicons/react/24/outline";
 import { resetDashboardState, useDashboard } from "contexts/DashboardContext";
 import useGetUser from "hooks/useGetUser";
+import { useBranding } from "hooks/useBranding";
 import { FC, ReactElement, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { fetch } from "service/http";
 import { removeAuthToken } from "utils/authStorage";
+import { updateThemeColor } from "utils/themeColor";
 import { BrandMark } from "./BrandMark";
 import { BrandingControls } from "./BrandingControls";
 import { AdminCapabilities } from "types/Admin";
@@ -79,6 +84,8 @@ const ActionButton: FC<ActionButtonProps> = ({ icon, label, onClick, danger }) =
 
 export const Header: FC = () => {
   const { userData, getUserIsSuccess, getUserIsPending } = useGetUser();
+  const { branding } = useBranding();
+  const { colorMode, toggleColorMode } = useColorMode();
   const isOwner = !getUserIsPending && getUserIsSuccess && (userData.is_sudo || userData.role === "OWNER");
   const capabilities = useQuery<AdminCapabilities, Error>(
     ["admin-capabilities", userData.username],
@@ -94,12 +101,14 @@ export const Header: FC = () => {
   useEffect(() => {
     document.documentElement.dataset.panelTheme = userData.dashboard_theme || "heisenberg";
   }, [userData.dashboard_theme]);
+  useEffect(() => updateThemeColor(colorMode), [colorMode]);
   useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
   const isAdminsPage = location.pathname.startsWith("/admins");
   const isAuditPage = location.pathname.startsWith("/audit-logs");
   const isDeviceLimitPage = location.pathname.startsWith("/device-limits");
   const isPlansPage = location.pathname.startsWith("/plans");
-  const isUsersPage = !isAdminsPage && !isAuditPage && !isDeviceLimitPage && !isPlansPage;
+  const isSettingsPage = location.pathname.startsWith("/settings");
+  const isUsersPage = !isAdminsPage && !isAuditPage && !isDeviceLimitPage && !isPlansPage && !isSettingsPage;
   const logout = async () => {
     try {
       await fetch("/admin/logout", { method: "POST" });
@@ -120,7 +129,7 @@ export const Header: FC = () => {
       top="0"
       zIndex="sticky"
       direction="column"
-      bg="color-mix(in srgb, var(--panel-bg) 97%, transparent)"
+      bg="rgba(11, 16, 32, .98)"
       color="white"
       borderEndWidth={{ lg: "1px" }}
       borderBottomWidth={{ base: "1px", lg: "0" }}
@@ -131,15 +140,16 @@ export const Header: FC = () => {
     >
       <HStack justify="space-between" align="center" gap={3}>
         <HStack spacing={3} minW={0}>
-          {userData.logo_url
-            ? <Image src={userData.logo_url} alt="لوگوی پنل" boxSize={{ base: "38px", lg: "46px" }} objectFit="contain" borderRadius="10px" />
+          {branding.logo_url || userData.logo_url
+            ? <Image src={branding.logo_url || userData.logo_url || undefined} alt={`${branding.panel_name} logo`} boxSize={{ base: "38px", lg: "46px" }} objectFit="contain" borderRadius="10px" />
             : <BrandMark aria-hidden="true" boxSize={{ base: "38px", lg: "46px" }} filter="drop-shadow(0 8px 20px var(--panel-glow))" />}
           <Box minW={0}>
-            <Text fontFamily="mono" fontSize="xs" fontWeight="700" letterSpacing="0.13em" color="primary.300" noOfLines={1}>HEISENBERG</Text>
-            <Text fontSize="xs" color="gray.400" mt="1px" noOfLines={1}>آزمایشگاه کنترل</Text>
+            <Text fontSize="sm" fontWeight="800" letterSpacing="-0.01em" color="white" noOfLines={1}>{branding.panel_name}</Text>
+            <Text fontSize="xs" color="gray.400" mt="1px" noOfLines={1}>Operations workspace</Text>
           </Box>
         </HStack>
         <HStack display={{ base: "flex", lg: "none" }} spacing={1} flexShrink={0}>
+          <IconButton onClick={toggleColorMode} size="sm" variant="ghost" aria-label={colorMode === "dark" ? "Use light theme" : "Use dark theme"} icon={colorMode === "dark" ? <SunIcon width={19} /> : <MoonIcon width={19} />} />
           <IconButton onClick={() => setMobileMenuOpen((value) => !value)} size="sm" variant="outline" aria-label={mobileMenuOpen ? "بستن منو" : "بازکردن منو"} aria-expanded={mobileMenuOpen} icon={mobileMenuOpen ? <XMarkIcon width={20} /> : <Bars3Icon width={20} />} />
         </HStack>
       </HStack>
@@ -160,6 +170,7 @@ export const Header: FC = () => {
           aria-current={isUsersPage ? "page" : undefined}
         >{t("users")}</Button>
         <Button
+          hidden={!isOwner}
           as={Link}
           to="/plans/"
           size="md"
@@ -199,6 +210,7 @@ export const Header: FC = () => {
             aria-current={isDeviceLimitPage ? "page" : undefined}
           >{t("deviceLimit.nav")}</Button>
         )}
+        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>Settings</Button>}
         {(
           <Button
             as={Link}
@@ -218,10 +230,11 @@ export const Header: FC = () => {
 
       <SimpleGrid as="nav" aria-label="ناوبری اصلی دسکتاپ" display={{ base: "none", lg: "grid" }} columns={1} spacing={2}>
         <Button as={Link} to="/" size="md" variant={isUsersPage ? "solid" : "ghost"} colorScheme={isUsersPage ? "primary" : "gray"} color={isUsersPage ? "#07130e" : "gray.200"} leftIcon={<UsersNavIcon />} justifyContent="flex-start" aria-current={isUsersPage ? "page" : undefined}>{t("users")}</Button>
-        <Button as={Link} to="/plans/" size="md" variant={isPlansPage ? "solid" : "ghost"} colorScheme={isPlansPage ? "primary" : "gray"} color={isPlansPage ? "#07130e" : "gray.200"} leftIcon={<PlansNavIcon />} justifyContent="flex-start" aria-current={isPlansPage ? "page" : undefined}>پلن‌ها</Button>
+        <Button hidden={!isOwner} as={Link} to="/plans/" size="md" variant={isPlansPage ? "solid" : "ghost"} colorScheme={isPlansPage ? "primary" : "gray"} color={isPlansPage ? "#08111f" : "gray.200"} leftIcon={<PlansNavIcon />} justifyContent="flex-start" aria-current={isPlansPage ? "page" : undefined}>Plans</Button>
         {canManage && <Button as={Link} to="/admins/" size="md" variant={isAdminsPage ? "solid" : "ghost"} colorScheme={isAdminsPage ? "primary" : "gray"} color={isAdminsPage ? "#07130e" : "gray.200"} leftIcon={<AdminsNavIcon />} justifyContent="flex-start" aria-current={isAdminsPage ? "page" : undefined}>{t("admins.nav")}</Button>}
         {isOwner && <Button as={Link} to="/device-limits/" size="md" variant={isDeviceLimitPage ? "solid" : "ghost"} colorScheme={isDeviceLimitPage ? "primary" : "gray"} color={isDeviceLimitPage ? "#07130e" : "gray.200"} leftIcon={<DeviceLimitNavIcon />} justifyContent="flex-start" aria-current={isDeviceLimitPage ? "page" : undefined}>{t("deviceLimit.nav")}</Button>}
         <Button as={Link} to="/audit-logs/" size="md" variant={isAuditPage ? "solid" : "ghost"} colorScheme={isAuditPage ? "cyan" : "gray"} color={isAuditPage ? "#06161a" : "gray.200"} leftIcon={<AuditNavIcon />} justifyContent="flex-start" aria-current={isAuditPage ? "page" : undefined}>{t("audit.nav")}</Button>
+        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>Settings</Button>}
       </SimpleGrid>
 
       {isOwner && (
@@ -243,6 +256,7 @@ export const Header: FC = () => {
       <Stack display={{ base: "none", lg: "flex" }} mt={6} pt={4} borderTopWidth="1px" borderColor="whiteAlpha.200" spacing={2}>
         <Text fontSize="xs" color="gray.400" px={2} noOfLines={1}>{userData?.username || "Administrator"}</Text>
         <BrandingControls theme={userData.dashboard_theme || "heisenberg"} hasLogo={Boolean(userData.logo_url)} />
+        <Button onClick={toggleColorMode} size="sm" variant="ghost" leftIcon={colorMode === "dark" ? <SunIcon width={16} /> : <MoonIcon width={16} />} justifyContent="flex-start">{colorMode === "dark" ? "Light theme" : "Dark theme"}</Button>
         <Button onClick={logout} size="sm" variant="ghost" color="red.200" leftIcon={<LogoutIcon />} justifyContent="flex-start" _hover={{ bg: "rgba(239, 68, 68, .14)", color: "red.100" }}>{t("header.logout")}</Button>
       </Stack>
     </Flex>

@@ -21,10 +21,8 @@ dayjs.extend(utc);
 dayjs.extend(RelativeTime);
 dayjs.extend(Duration);
 
-localStorage.setItem("chakra-ui-color-mode", "dark");
-document.documentElement.style.colorScheme = "dark";
 document.documentElement.dataset.panelTheme = document.documentElement.dataset.panelTheme || "heisenberg";
-updateThemeColor("dark");
+updateThemeColor(document.documentElement.classList.contains("chakra-ui-dark") ? "dark" : "light");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

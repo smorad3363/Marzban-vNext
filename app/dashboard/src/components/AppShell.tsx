@@ -4,7 +4,7 @@ import { Footer } from "./Footer";
 import { Header } from "./Header";
 
 export const AppShell: FC<PropsWithChildren> = ({ children }) => (
-  <Flex minH="100vh" align="stretch" direction={{ base: "column", lg: "row" }} className="lab-shell">
+  <Flex minH="100vh" align="stretch" direction={{ base: "column", lg: "row" }} className="operations-shell">
     <Header />
     <Flex
       as="main"

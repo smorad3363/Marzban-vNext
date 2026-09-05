@@ -13,7 +13,7 @@ import {
   Text,
   VStack,
 } from "@chakra-ui/react";
-import { ArrowRightOnRectangleIcon, BeakerIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
+import { ArrowRightOnRectangleIcon, ServerStackIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BrandMark } from "components/BrandMark";
 import { resetDashboardState } from "contexts/DashboardContext";
@@ -26,6 +26,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { fetch } from "service/http";
 import { removeAuthToken, setAuthToken } from "utils/authStorage";
 import { localizedApiError } from "utils/apiError";
+import { useBranding } from "hooks/useBranding";
 import { z } from "zod";
 
 const schema = z.object({
@@ -33,8 +34,8 @@ const schema = z.object({
   password: z.string().min(1, "login.fieldRequired"),
 });
 
-const LabTile: FC<{ number: string; symbol: string; label: string }> = ({ number, symbol, label }) => (
-  <Box border="1px solid" borderColor="rgba(92, 221, 149, 0.26)" bg="rgba(12, 31, 20, 0.72)" p={4} minH="116px">
+const SignalTile: FC<{ number: string; symbol: string; label: string }> = ({ number, symbol, label }) => (
+  <Box border="1px solid" borderColor="rgba(96, 165, 250, 0.3)" bg="rgba(11, 16, 32, 0.78)" p={4} minH="116px">
     <Text fontFamily="mono" fontSize="xs" color="primary.300">{number}</Text>
     <Text fontFamily="mono" fontSize="4xl" fontWeight="700" lineHeight="1" mt={2}>{symbol}</Text>
     <Text fontSize="xs" color="gray.400" mt={3} textTransform="uppercase" letterSpacing="0.12em">{label}</Text>
@@ -42,6 +43,7 @@ const LabTile: FC<{ number: string; symbol: string; label: string }> = ({ number
 );
 
 export const Login: FC = () => {
+  const { branding } = useBranding();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -80,10 +82,10 @@ export const Login: FC = () => {
       <Flex direction="column" minH="100vh" minW={0} px={{ base: 6, md: 12 }} py={{ base: 6, md: 8 }} borderEnd={{ lg: "1px solid" }} borderColor={{ lg: "gray.200" }} _dark={{ borderColor: "rgba(91,132,108,.32)" }}>
         <HStack justifyContent="space-between" w="full">
           <HStack spacing={3}>
-            <BrandMark aria-hidden="true" boxSize="44px" filter="drop-shadow(0 9px 22px rgba(34,197,94,.2))" />
+            {branding.logo_url ? <Box as="img" src={branding.logo_url} alt={`${branding.panel_name} logo`} boxSize="44px" objectFit="contain" /> : <BrandMark aria-hidden="true" boxSize="44px" filter="drop-shadow(0 9px 22px rgba(37,99,235,.24))" />}
             <Box>
-              <Text fontFamily="mono" fontSize="xs" fontWeight="700" letterSpacing="0.14em" color="primary.600" _dark={{ color: "primary.300" }}>HEISENBERG PANEL</Text>
-              <Text fontSize="xs" color="gray.500">آزمایشگاه کنترل خصوصی</Text>
+              <Text fontSize="sm" fontWeight="800" color="primary.600" _dark={{ color: "primary.300" }}>{branding.panel_name}</Text>
+              <Text fontSize="xs" color="gray.500">Secure operations workspace</Text>
             </Box>
           </HStack>
         </HStack>
@@ -92,8 +94,8 @@ export const Login: FC = () => {
           <Box w="full" maxW="390px">
             <Badge colorScheme="green" variant="subtle" px={2.5} py={1} borderRadius="4px" fontFamily="mono" letterSpacing=".08em">AUTHORIZED PERSONNEL</Badge>
             <VStack alignItems="flex-start" w="full" spacing={2} mt={5}>
-              <Text as="h1" fontSize={{ base: "3xl", md: "4xl" }} lineHeight="1.08" letterSpacing="-0.035em" fontWeight="700">{t("login.loginYourAccount")}</Text>
-              <Text color="gray.600" _dark={{ color: "gray.400" }} maxW="36ch">{t("login.welcomeBack")}</Text>
+              <Text as="h1" fontSize={{ base: "3xl", md: "4xl" }} lineHeight="1.08" letterSpacing="-0.035em" fontWeight="700">{branding.login_title}</Text>
+              <Text color="gray.600" _dark={{ color: "gray.400" }} maxW="42ch">{branding.description || t("login.welcomeBack")}</Text>
             </VStack>
 
             <Box w="full" pt="7">
@@ -111,7 +113,7 @@ export const Login: FC = () => {
         <Footer />
       </Flex>
 
-      <Box display={{ base: "none", lg: "block" }} position="relative" overflow="hidden" bg="#07130e" color="white">
+      <Box display={{ base: "none", lg: "block" }} position="relative" overflow="hidden" bg="#0b1020" color="white">
         <Box
           aria-hidden="true"
           position="absolute"
@@ -127,28 +129,28 @@ export const Login: FC = () => {
           aria-hidden="true"
           position="absolute"
           inset={0}
-          bgGradient="linear(to-r, rgba(7,19,14,.94) 0%, rgba(7,19,14,.82) 38%, rgba(7,19,14,.34) 72%, rgba(7,19,14,.18) 100%), linear(to-b, rgba(7,19,14,.12), rgba(7,19,14,.72))"
+          bgGradient="linear(to-r, rgba(11,16,32,.96) 0%, rgba(11,16,32,.84) 38%, rgba(11,16,32,.4) 72%, rgba(11,16,32,.2) 100%), linear(to-b, rgba(11,16,32,.14), rgba(11,16,32,.78))"
         />
-        <Box aria-hidden="true" position="absolute" inset={0} className="lab-grid" opacity=".2" />
+        <Box aria-hidden="true" position="absolute" inset={0} className="operations-grid" opacity=".2" />
         <Flex position="relative" minH="100vh" direction="column" justify="space-between" p={{ lg: 10, xl: 14 }}>
           <HStack justify="space-between" fontFamily="mono" fontSize="xs" color="primary.200" letterSpacing=".12em">
-            <HStack><Box boxSize="7px" borderRadius="full" bg="primary.300" boxShadow="0 0 14px #48d58b" /><Text>SYSTEM STABLE</Text></HStack>
-            <Text>LAB // 02</Text>
+            <HStack><Box boxSize="7px" borderRadius="full" bg="primary.300" boxShadow="0 0 14px #60a5fa" /><Text>SYSTEM STABLE</Text></HStack>
+            <Text>OPS // 01</Text>
           </HStack>
 
           <Box maxW="680px">
             <SimpleGrid columns={3} gap={3} maxW="500px" mb={10}>
-              <LabTile number="2" symbol="He" label="Control" />
-              <LabTile number="16" symbol="S" label="Secure" />
-              <LabTile number="78" symbol="Pt" label="Precise" />
+              <SignalTile number="01" symbol="N" label="Network" />
+              <SignalTile number="02" symbol="O" label="Observe" />
+              <SignalTile number="03" symbol="C" label="Control" />
             </SimpleGrid>
-            <Text as="h2" fontFamily="mono" fontSize={{ lg: "4xl", xl: "5xl" }} fontWeight="700" lineHeight="1.08" letterSpacing="-.045em">Precision is the formula.<br /><Text as="span" color="primary.300">Control is the result.</Text></Text>
+            <Text as="h2" fontFamily="mono" fontSize={{ lg: "4xl", xl: "5xl" }} fontWeight="700" lineHeight="1.08" letterSpacing="-.045em">Signals stay clear.<br /><Text as="span" color="primary.300">Control stays close.</Text></Text>
             <Text color="gray.400" mt={5} maxW="48ch">A private operations surface built for exact decisions, clear signals and controlled access.</Text>
           </Box>
 
           <HStack spacing={6} color="gray.400" fontSize="xs">
             <HStack><ShieldCheckIcon width="17px" aria-hidden="true" /><Text>Protected access</Text></HStack>
-            <HStack><BeakerIcon width="17px" aria-hidden="true" /><Text>Controlled environment</Text></HStack>
+            <HStack><ServerStackIcon width="17px" aria-hidden="true" /><Text>Controlled environment</Text></HStack>
           </HStack>
         </Flex>
       </Box>

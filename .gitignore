@@ -164,3 +164,5 @@ xray-core
 # Local Codex, review, and generated knowledge-graph artifacts
 .codex/
 graphify-out/
+.playwright-cli/
+output/playwright/

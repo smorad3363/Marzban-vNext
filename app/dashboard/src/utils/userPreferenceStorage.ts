@@ -1,4 +1,4 @@
-const NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY = "heisenberg-panel-users-per-page";
+const NUM_USERS_PER_PAGE_LOCAL_STORAGE_KEY = "operations-console-users-per-page";
 const NUM_USERS_PER_PAGE_DEFAULT = 10;
 const ALLOWED_USERS_PER_PAGE = [10, 25, 50];
 export const getUsersPerPageLimitSize = () => {
