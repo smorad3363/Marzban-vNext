@@ -104,6 +104,8 @@ class XRayCore:
         return False
 
     def start(self, config: XRayConfig):
+        from app.utils.access_groups import filter_node_config
+        config = filter_node_config(config, None)
         if self.started is True:
             raise RuntimeError("Xray is started already")
 

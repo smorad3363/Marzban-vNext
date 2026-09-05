@@ -203,7 +203,10 @@ install_marzban_script_from_repo() {
         colorized_echo red "Could not download marzban script from ${script_ref}."
         return 1
     fi
-    install -m 755 "$temp_script" /usr/local/bin/marzban
+    if ! bash -n "$temp_script" || ! install -m 755 "$temp_script" /usr/local/bin/marzban; then
+        rm -f "$temp_script"
+        return 1
+    fi
     rm -f "$temp_script"
     if [ -d "$APP_DIR" ]; then
         printf '%s\n' "$requested_version" > "$CLI_VERSION_FILE"
@@ -270,6 +273,10 @@ verify_version_integrity() {
     container_id=$(running_service_container marzban)
     [ -n "$container_id" ] || { colorized_echo red "Version integrity failed: application container is not running."; return 1; }
     running_image=$(docker inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || true)
+    local running_image_id expected_image_id
+    running_image_id=$(docker inspect --format '{{.Image}}' "$container_id" 2>/dev/null || true)
+    expected_image_id=$(docker image inspect --format '{{.Id}}' "$expected_image" 2>/dev/null || true)
+    [ -n "$running_image_id" ] && [ "$running_image_id" = "$expected_image_id" ] || { colorized_echo red "Version integrity failed: running image content differs from the expected local image."; return 1; }
     runtime_version=$(runtime_app_version | tr -d '\r[:space:]' || true)
     cli_version=$(cat "$CLI_VERSION_FILE" 2>/dev/null | tr -d '\r[:space:]' || true)
     digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$running_image" 2>/dev/null || true)
@@ -1857,7 +1864,7 @@ update_command() {
 update_marzban_script() {
     local requested_version="${1:-latest}"
     colorized_echo blue "Updating marzban script"
-    install_marzban_script_from_repo "$requested_version"
+    install_marzban_script_from_repo "$requested_version" || return 1
     colorized_echo green "marzban script updated successfully"
 }
 
@@ -1888,6 +1895,12 @@ mysql_upgrade_required_for_update() {
 
 mysql_upgrade_container_id() {
     $COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" ps -q -a mysql 2>/dev/null
+}
+
+mysql_source_version_supported() {
+    local source_numeric="${1%%-*}"
+    [[ "$source_numeric" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    [ "$(printf '%s\n%s\n' "$source_numeric" "$MYSQL_TARGET_VERSION" | sort -V | head -n 1)" = "$source_numeric" ]
 }
 
 mysql_upgrade_wait_for_ready() {
@@ -1978,6 +1991,10 @@ mysql_upgrade_command() {
         fi
         container_id=$(mysql_upgrade_container_id)
         source_version=$(mysql_upgrade_server_version "$container_id" | tr -d '\r[:space:]')
+        if ! mysql_source_version_supported "$source_version"; then
+            colorized_echo red "MySQL downgrade or unknown source version refused: ${source_version} -> ${MYSQL_TARGET_VERSION}"
+            exit 1
+        fi
         source_image=$(configured_service_image mysql)
         source_data=$(mysql_compose_data_source)
         if [ -z "$source_data" ] || [ "$source_data" = "/" ]; then
@@ -2000,6 +2017,10 @@ mysql_upgrade_command() {
         cp "$COMPOSE_FILE" "$(dirname "$logical_backup")/docker-compose.yml.before-migration"
         cp "$ENV_FILE" "$(dirname "$logical_backup")/.env.before-migration"
         chmod 600 "$(dirname "$logical_backup")/.env.before-migration"
+        # Quiesce the API and its accounting/scheduler writers before the dump.
+        # Keep MySQL running. On failure, leave the application stopped so a
+        # retry cannot silently discard writes made after the backup snapshot.
+        $COMPOSE -f "$COMPOSE_FILE" -p "$APP_NAME" stop marzban || exit 1
         colorized_echo blue "Creating consistent logical backup of application database"
         if ! docker exec "$container_id" sh -c \
             'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump --user=root --databases "$MYSQL_DATABASE" --single-transaction --routines --events --triggers --set-gtid-purged=OFF --hex-blob' \

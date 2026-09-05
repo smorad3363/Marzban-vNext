@@ -160,6 +160,12 @@ def test_checked_selection_is_exact_and_combines_compatible_actions(db):
     assert (result.success, result.failed) == (1, 0), result.results
     assert (selected.data_limit, selected.expire) == (110, 2_000_604_800)
     assert (untouched.data_limit, untouched.expire) == (100, 2_000_000_000)
+    replay = bulk_operations.execute_selection(db, tree["owner"], values)
+    db.refresh(selected)
+    assert replay == result
+    assert (selected.data_limit, selected.expire) == (110, 2_000_604_800)
+    with pytest.raises(bulk_operations.BulkOperationError, match="Operation ID"):
+        bulk_operations.execute_selection(db, tree["owner"], values.model_copy(update={"user_ids": [untouched.id]}))
 
 
 def test_checked_selection_rejects_incompatible_actions():
@@ -169,6 +175,37 @@ def test_checked_selection_rejects_incompatible_actions():
             user_ids=[1],
             actions=[{"operation": "activate"}, {"operation": "deactivate"}],
         )
+
+
+def test_allocated_selection_charges_preview_price_once_and_rolls_back_insufficient_wallet(db):
+    from datetime import datetime, timezone
+    from app.db.models import OwnerDurationPreset, AdminMoneyTransaction
+    direct = db.info["tree"]["direct"]
+    settings = db.get(MarzhelpAdminSettings, direct.id)
+    settings.billing_mode = "ALLOCATED_TRAFFIC"
+    settings.user_creation_mode_id = 1
+    settings.total_traffic = 100 * 1024**3
+    settings.money_balance_toman = 2000
+    db.add(OwnerDurationPreset(duration_days=30, multiplier_basis_points=10000, enabled=True))
+    expires = int(datetime.now(timezone.utc).timestamp()) + 30 * 86400
+    selected = _user(db, direct, "paid-selected", data_limit=1024**3, expire=expires)
+    values = BulkSelectionRequest(operation_id="paid-selection-01", user_ids=[selected.id],
+                                  actions=[{"operation": "add_data", "amount": 1024**3}])
+    preview = bulk_operations.preview_selection(db, direct, values)
+    assert preview.cost_toman == 1000
+    result = bulk_operations.execute_selection(db, direct, values)
+    assert result.success == 1, result.results
+    assert settings.money_balance_toman == 1000
+    replay = bulk_operations.execute_selection(db, direct, values)
+    assert replay == result
+    assert db.query(AdminMoneyTransaction).filter_by(user_id=selected.id).count() == 1
+    settings.money_balance_toman = 0
+    db.commit()
+    failed = bulk_operations.execute_selection(db, direct, values.model_copy(update={"operation_id": "paid-selection-02"}))
+    db.refresh(selected)
+    assert failed.failed == 1
+    assert selected.data_limit == 2 * 1024**3
+    assert settings.money_balance_toman == 0
 
 
 def test_stage8_api_routes_are_registered():

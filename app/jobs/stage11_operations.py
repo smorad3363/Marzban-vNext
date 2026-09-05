@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import timezone
+from sqlalchemy.exc import IntegrityError
 
 from app import logger, scheduler
 from app.db import GetDB
@@ -67,8 +69,47 @@ def cleanup_stage11_history():
         purge_delivered_backup_files(db)
 
 
+def create_configured_panel_backup():
+    from app import __version__
+    from app.utils import stage11_operations as operations
+    from app.routers.backup import PANEL_FILE_TARGETS
+
+    with GetDB() as db:
+        settings = operations.backup_settings(db)
+        if not settings.enabled:
+            return
+        seconds = operations.SCHEDULE_SECONDS[settings.schedule]
+        period = f"scheduled-{settings.schedule}-{int(now().replace(tzinfo=timezone.utc).timestamp()) // seconds}"
+        artifact = BackupArtifact(period_key=period, database_name="pending")
+        db.add(artifact)
+        try:
+            db.commit()  # Unique period claim prevents duplicate multi-worker backups.
+        except IntegrityError:
+            db.rollback()
+            return
+        try:
+            archive, manifest = operations.create_panel_backup(
+                SQLALCHEMY_DATABASE_URL, Path(STAGE11_BACKUP_SPOOL), period,
+                app_version=__version__, include_paths=PANEL_FILE_TARGETS,
+            )
+            artifact.database_name = manifest["database_name"]
+            artifact.encrypted_path = str(archive)
+            artifact.size_bytes = archive.stat().st_size
+            artifact.sha256 = manifest["archive_sha256"]
+            artifact.generation_status = "SUCCESS"
+            db.commit()
+            operations.deliver_panel_backup(db, artifact)
+            operations.enforce_retention(Path(STAGE11_BACKUP_SPOOL), settings.retention_count)
+        except Exception as exc:
+            db.rollback()
+            artifact.generation_status = "FAILED"
+            artifact.error_code = type(exc).__name__[:64]
+            db.commit()
+
+
 scheduler.add_job(process_stage11_outbox, "interval", seconds=30, coalesce=True, max_instances=1)
 scheduler.add_job(cleanup_stage11_history, "interval", hours=6, coalesce=True, max_instances=1)
+scheduler.add_job(create_configured_panel_backup, "interval", minutes=1, coalesce=True, max_instances=1)
 if STAGE11_BACKUP_ENABLED:
     scheduler.add_job(create_stage11_backup, "interval", minutes=STAGE11_BACKUP_INTERVAL_MINUTES,
                       coalesce=True, max_instances=1)

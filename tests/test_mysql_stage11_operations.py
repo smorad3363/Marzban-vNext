@@ -43,7 +43,7 @@ def test_mysql_stage11_migration_claim_idempotency_indexes_and_isolated_restore(
     migrate("1a9e7c3d5b20")
     migrate("head")
     with engine.connect() as connection:
-        assert connection.execute(sa.text("SELECT VERSION()" )).scalar().startswith("8.0.")
+        assert connection.execute(sa.text("SELECT VERSION()" )).scalar().startswith(os.getenv("TEST_MYSQL_VERSION_PREFIX", "8.0."))
         for table in ("telegram_outbox", "backup_artifacts"):
             assert connection.execute(sa.text(f"SHOW TABLE STATUS LIKE '{table}'")).mappings().one()["Engine"] == "InnoDB"
         names = {item["name"] for item in sa.inspect(connection).get_indexes("telegram_outbox")}
@@ -54,7 +54,7 @@ def test_mysql_stage11_migration_claim_idempotency_indexes_and_isolated_restore(
             enqueue_outbox(db, idempotency_key=f"mysql:{index}", event_type="audit", payload={"index": index})
         db.commit()
     with engine.connect() as connection:
-        plan = connection.execute(sa.text("EXPLAIN SELECT id FROM telegram_outbox WHERE status='PENDING' AND next_attempt_at<=NOW() ORDER BY next_attempt_at,id LIMIT 25")).mappings().one()
+        plan = connection.execute(sa.text("EXPLAIN FORMAT=TRADITIONAL SELECT id FROM telegram_outbox WHERE status='PENDING' AND next_attempt_at<=NOW() ORDER BY next_attempt_at,id LIMIT 25")).mappings().one()
         assert plan["key"] == "ix_telegram_outbox_dispatch"
     with engine.begin() as connection:
         connection.execute(sa.text("UPDATE telegram_outbox SET next_attempt_at=UTC_TIMESTAMP() - INTERVAL 1 SECOND"))

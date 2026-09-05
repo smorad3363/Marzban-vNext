@@ -31,6 +31,24 @@ from app.device_limit.clients import observe_subscription_client, parse_user_age
 from app.device_limit.constants import PenaltyAction, SubscriptionMode
 from app.device_limit.engine import DeviceLimitEngine, HIT_BUFFER_CAPACITY, mask_ip
 from app.device_limit.slots import slot_email, sync_device_slots
+
+
+def test_collector_exits_when_node_object_is_replaced(monkeypatch):
+    from collections import deque
+    from unittest.mock import Mock
+    from app import xray
+    engine = DeviceLimitEngine()
+    source = Mock()
+    @contextmanager
+    def logs():
+        yield deque(["must not consume stale source"])
+    source.get_logs = logs
+    monkeypatch.setattr(xray, "nodes", {7: object()})
+    engine._stop = Mock()
+    engine._stop.wait.side_effect = [False, True]
+    engine.record_log = Mock()
+    engine._collect(source, "node:7")
+    engine.record_log.assert_not_called()
 from app.models.user import UserStatus
 from app.models.user import UserCreate
 from app.models.device_limit import DeviceLimitSettingsUpdate

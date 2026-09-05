@@ -1212,7 +1212,7 @@ class OwnerCommercialPolicy(Base):
 class OwnerDurationPreset(Base):
     __tablename__ = "owner_duration_presets"
 
-    duration_days = Column(Integer, primary_key=True)
+    duration_days = Column(Integer, primary_key=True, autoincrement=False)
     multiplier_basis_points = Column(Integer, nullable=False)
     enabled = Column(Boolean, nullable=False, default=True)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

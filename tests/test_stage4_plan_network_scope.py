@@ -185,7 +185,40 @@ def test_commercial_plan_and_access_group_are_independent(db, monkeypatch):
     )
     assert synced == [user.id]
     assert admin_plans.subscription_host_scope(session, user) == {tag: {second.id}}
+    assert admin_plans.subscription_host_scopes(session, [user]) == {user.id: {tag: {second.id}}}
     assert admin_plans.plan_response(session, plan).version.inbounds == []
+    user.status = user_models.UserStatus.disabled
+    session.commit()
+    access_groups.archive(session, owner, group)
+    with pytest.raises(admin_hierarchy.HierarchyError, match="Access Group is unavailable"):
+        admin_plans.renew_user_from_plan(session, actor=owner, user=user, plan_id=plan.id,
+                                       idempotency_key="archived-access-renew")
+
+
+def test_node_scope_filters_all_slots_and_preserves_source_config(db, monkeypatch):
+    from contextlib import contextmanager
+    from app.db.models import AccessGroupNode, User
+    from app.xray.config import XRayConfig
+    session, owner = db
+    tag, first, _ = _configure_network(session, monkeypatch)
+    group = access_groups.create(session, owner, AccessGroupInput(name="node scoped", inbounds=[tag], hosts={tag: [first.id]}))
+    session.add(AccessGroupNode(access_group_id=group.id, node_id=7))
+    user = User(username="node-scoped-user", admin_id=owner.id, access_group_id=group.id)
+    session.add(user)
+    session.commit()
+    @contextmanager
+    def get_db():
+        yield session
+    monkeypatch.setattr("app.db.GetDB", get_db)
+    config = XRayConfig.__new__(XRayConfig)
+    config.update({"inbounds": [{"settings": {"clients": [
+        {"email": f"{user.id}.node-scoped-user"}, {"email": f"{user.id}.node-scoped-user.slot2"},
+        {"email": "static@example.test"},
+    ]}}]})
+    assert access_groups.user_node_scope(user) == {7}
+    assert len(access_groups.filter_node_config(config, 7)["inbounds"][0]["settings"]["clients"]) == 3
+    assert len(access_groups.filter_node_config(config, None)["inbounds"][0]["settings"]["clients"]) == 1
+    assert len(config["inbounds"][0]["settings"]["clients"]) == 3
 
 
 def test_plan_scope_persists_and_disabled_or_deleted_host_fails_closed(db, monkeypatch):

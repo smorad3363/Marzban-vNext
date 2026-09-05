@@ -578,6 +578,9 @@ def update_user(
     Returns:
         User: The updated user object.
     """
+    # Requests may have loaded this user before another transaction committed.
+    # Price and apply the modification against the same locked current state.
+    db.refresh(dbuser, with_for_update=True)
     renewal, allowance_consumed = marzhelp_policy.validate_update(
         db,
         dbuser,

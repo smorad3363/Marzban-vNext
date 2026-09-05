@@ -404,7 +404,7 @@ class MoneyTransferResponse(BaseModel):
 
 class DurationPresetInput(BaseModel):
     duration_days: int = Field(ge=1, le=3650)
-    multiplier: float = Field(gt=0, le=100)
+    multiplier: float = Field(ge=0.0001, le=100)
     enabled: bool = True
 
 

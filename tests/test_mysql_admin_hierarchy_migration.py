@@ -27,7 +27,7 @@ from app.db.models import (
     User,
 )
 from app.models.user import UserStatus
-from app.utils import admin_hierarchy, marzhelp_policy
+from app.utils import admin_hierarchy, marzhelp_policy, money_billing
 
 
 MYSQL_URL = os.getenv("TEST_MYSQL_DATABASE_URL")
@@ -230,6 +230,33 @@ def _assert_mysql_credit_concurrency(engine: sa.Engine) -> None:
         verify.close()
 
 
+def _assert_mysql_preloaded_wallet_concurrency(engine: sa.Engine) -> None:
+    from threading import Barrier
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory() as seed:
+        admin = Admin(username="review-wallet-race", hashed_password="x", is_sudo=False)
+        seed.add(admin)
+        seed.flush()
+        seed.add(MarzhelpAdminSettings(admin_id=admin.id, money_balance_toman=100))
+        seed.commit()
+        admin_id = admin.id
+    ready = Barrier(2)
+    def debit():
+        with factory() as session:
+            stale = session.get(MarzhelpAdminSettings, admin_id)
+            assert stale.money_balance_toman == 100
+            ready.wait(timeout=10)
+            wallet = money_billing._settings_for_update(session, {admin_id})[admin_id]
+            before = wallet.money_balance_toman
+            wallet.money_balance_toman -= 10
+            session.commit()
+            return before
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(lambda _: debit(), range(2))) == [90, 100]
+    with factory() as verify:
+        assert verify.get(MarzhelpAdminSettings, admin_id).money_balance_toman == 80
+
+
 def _assert_mysql_seat_renewal_idempotency(engine: sa.Engine) -> None:
     factory = sessionmaker(bind=engine, expire_on_commit=False)
     seed = factory()
@@ -421,12 +448,22 @@ def test_mysql_hierarchy_fresh_legacy_partial_and_rerun(monkeypatch):
     _reset_test_schema(engine)
     _upgrade(MYSQL_URL, "head")
     with engine.begin() as connection:
+        # Simulate interruption between nontransactional Access Group DDL steps.
+        connection.execute(sa.text("DROP TABLE access_group_hosts"))
+        access_path = MIGRATION_PATH.with_name("a7c4e9d2f610_separate_access_groups_from_plans.py")
+        spec = importlib.util.spec_from_file_location("review_access_migration", access_path)
+        access_migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(access_migration)
+        access_migration.op = Operations(MigrationContext.configure(connection))
+        access_migration.upgrade()
+        assert "access_group_hosts" in sa.inspect(connection).get_table_names()
         _assert_extended_schema(connection)
         module = _migration_module()
         module.op = Operations(MigrationContext.configure(connection))
         module.upgrade()
         _assert_extended_schema(connection)
     _assert_mysql_credit_concurrency(engine)
+    _assert_mysql_preloaded_wallet_concurrency(engine)
     _assert_mysql_seat_renewal_idempotency(engine)
     _assert_mysql_stage7_freeze_and_referral_concurrency(engine)
 

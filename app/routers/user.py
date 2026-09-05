@@ -203,14 +203,11 @@ def modify_user(
     previous_value = user_audit_state(dbuser)
     old_status = dbuser.status
     dbactor = crud.get_admin(db, admin.username) or admin
-    if dbactor is not None and not admin_hierarchy.is_owner(db, dbactor):
-        settings = db.get(MarzhelpAdminSettings, dbuser.admin_id)
-        if modified_user.expire is not None and admin_hierarchy.allows_form_creation(settings):
-            try:
-                owner_pricing.duration_preset(db, modified_user.expire or None)
-            except admin_hierarchy.HierarchyError as exc:
-                raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)})
-    dbuser = crud.update_user(db, dbuser, modified_user, actor=dbactor)
+    try:
+        dbuser = crud.update_user(db, dbuser, modified_user, actor=dbactor)
+    except admin_hierarchy.HierarchyError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)}) from exc
     user = admin_plans.scoped_user_response(db, dbuser, actor=dbactor)
     new_value = user_audit_state(dbuser)
     audit_action = classify_user_change(previous_value, new_value)

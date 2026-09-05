@@ -175,9 +175,14 @@ class DeviceLimitEngine:
         thread.start()
 
     def _collect(self, source, source_name: str) -> None:
+        generation = (getattr(source, "process", None), getattr(source, "_session_id", None))
         try:
             with source.get_logs() as logs:
                 while not self._stop.wait(0.2):
+                    if source_name.startswith("node:") and xray.nodes.get(int(source_name.split(":", 1)[1])) is not source:
+                        break
+                    if generation != (getattr(source, "process", None), getattr(source, "_session_id", None)):
+                        break
                     try:
                         line = logs.popleft()
                     except IndexError:

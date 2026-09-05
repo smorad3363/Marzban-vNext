@@ -933,6 +933,25 @@ def test_used_traffic_money_chain_bills_fractional_gib_and_margin(db):
     assert parent_settings.usage_billing_remainder == 0
 
 
+def test_used_traffic_plan_access_does_not_charge_allocated_purchase(db):
+    from types import SimpleNamespace
+    from app.db.models import AdminUserPlanAccess
+    owner, parent, child, parent_settings, settings = _money_tree(db)
+    settings.billing_mode = "USED_TRAFFIC"
+    settings.user_creation_mode_id = 2
+    plan = AdminUserPlan(owner_admin_id=owner.id, name="usage-provisioning")
+    db.add(plan)
+    db.flush()
+    db.add(AdminUserPlanAccess(plan_id=plan.id, admin_id=child.id, include_subtree=False))
+    db.commit()
+    assert admin_plans.can_use_plan(db, child, plan.id)
+    money_billing.charge_plan_purchase(db, buyer=child, actor=child, plan=plan,
+                                      version=SimpleNamespace(price_toman=1000), user_id=1,
+                                      idempotency_key="used-plan-no-purchase", operation_type="create")
+    assert settings.money_balance_toman == 1_000_000
+    assert db.query(AdminMoneyTransaction).count() == 0
+
+
 def test_used_traffic_zero_crossing_suspends_account_and_active_users_atomically(db):
     _, parent, child, parent_settings, child_settings = _money_tree(db)
     parent_settings.billing_mode = admin_billing.BillingMode.USED_TRAFFIC.value

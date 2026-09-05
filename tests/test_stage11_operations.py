@@ -153,3 +153,91 @@ def test_backup_settings_keep_redacted_secrets_on_update():
 
     assert updated.telegram_bot_token == "secret-token"
     assert updated.smtp_password == "secret-password"
+
+
+def test_panel_archive_rejects_unchecked_and_duplicate_members(tmp_path):
+    sql = b"CREATE TABLE proof (id INT);"
+    manifest = {"format": "panel-backup-v1", "database_engine": "mysql",
+                "files": {"database.sql": hashlib.sha256(sql).hexdigest()}}
+    archive = tmp_path / "unsafe.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("manifest.json", json.dumps(manifest))
+        bundle.writestr("database.sql", sql)
+        bundle.writestr("files/0-.env/.env", b"unchecked secret replacement")
+    with pytest.raises(ValueError, match="backup_checksum_manifest_incomplete"):
+        validate_panel_backup(archive)
+    with zipfile.ZipFile(archive, "a") as bundle:
+        bundle.writestr("database.sql", sql)
+    with pytest.raises(ValueError, match="backup_archive_duplicate_member"):
+        validate_panel_backup(archive)
+
+
+def test_restore_dotenv_targets_file_and_prevalidates_all_roots(tmp_path):
+    from app.utils.stage11_operations import restore_panel_files
+    target = tmp_path / ".env"
+    target.write_text("old")
+    sql = b"CREATE TABLE proof (id INT);"
+    files = {"database.sql": sql, "files/0-.env/.env": b"new"}
+    manifest = {"format": "panel-backup-v1", "database_engine": "mysql",
+                "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()},
+                "restore_roots": {"files/0-.env": str(target)}}
+    archive = tmp_path / "restore.zip"
+    def write_archive():
+        with zipfile.ZipFile(archive, "w") as bundle:
+            bundle.writestr("manifest.json", json.dumps(manifest))
+            for name, data in files.items():
+                bundle.writestr(name, data)
+    write_archive()
+    assert restore_panel_files(archive, [target]) == 1
+    assert target.read_text() == "new"
+    target.write_text("preserved")
+    manifest["restore_roots"]["files/forbidden"] = str(tmp_path / "outside")
+    write_archive()
+    with pytest.raises(ValueError, match="backup_restore_target_forbidden"):
+        restore_panel_files(archive, [target])
+    assert target.read_text() == "preserved"
+
+
+def test_online_restore_fails_before_any_database_or_file_mutation(monkeypatch):
+    from fastapi import HTTPException
+    from app.routers import backup
+    monkeypatch.setattr(backup, "_owner", lambda *args: None)
+    monkeypatch.setattr(backup, "_save_upload", lambda *args: pytest.fail("upload must not be processed"))
+    with pytest.raises(HTTPException) as error:
+        backup.restore_backup("unused", backup=None, db=None, actor=None)
+    assert error.value.status_code == 409
+    assert error.value.detail["code"] == "offline_restore_required"
+
+
+def test_configured_backup_schedule_claim_and_delivery_failure_keep_local_copy(monkeypatch, tmp_path):
+    from contextlib import contextmanager
+    from app.jobs import stage11_operations as jobs
+    from app.utils import stage11_operations as operations
+    from app.db.models import BackupArtifact
+    db = session()
+    db.add(BackupSettings(id=1, enabled=True, schedule="15m", destination="EMAIL",
+                          smtp_host="smtp.example.test", smtp_port=587,
+                          email_from="from@example.test", email_to="to@example.test"))
+    db.commit()
+    @contextmanager
+    def get_db():
+        yield db
+    archive = tmp_path / "backup.panel-backup.zip"
+    archive.write_bytes(b"local recovery copy")
+    calls = []
+    def generate(*args, **kwargs):
+        calls.append(args)
+        return archive, {"database_name": "test", "archive_sha256": "0" * 64}
+    monkeypatch.setattr(jobs, "GetDB", get_db)
+    monkeypatch.setattr(jobs, "STAGE11_BACKUP_SPOOL", str(tmp_path))
+    monkeypatch.setattr(operations, "create_panel_backup", generate)
+    monkeypatch.setattr(operations, "send_backup_email", lambda *args: (_ for _ in ()).throw(TimeoutError()))
+    fixed_now = jobs.now()
+    monkeypatch.setattr(jobs, "now", lambda: fixed_now)
+    jobs.create_configured_panel_backup()
+    jobs.create_configured_panel_backup()
+    assert len(calls) == 1
+    artifact = db.query(BackupArtifact).one()
+    assert artifact.generation_status == "SUCCESS"
+    assert artifact.delivery_status == "FAILED"
+    assert archive.read_bytes() == b"local recovery copy"

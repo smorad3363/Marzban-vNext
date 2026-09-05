@@ -177,6 +177,25 @@ def test_mysql_upgrade_uses_resumable_logical_dump_restore():
     assert auto_upgrade < app_pull
     assert 'mysql_upgrade_command\n' in installer[auto_upgrade:app_pull]
     assert 'mysql_preflight' in installer
+    migration = installer.split("mysql_upgrade_command() {", 1)[1]
+    assert migration.index('stop marzban || exit 1') < migration.index('exec mysqldump')
+    assert migration.index('mysql_source_version_supported "$source_version"') < migration.index('exec mysqldump')
+
+
+def test_mysql_downgrade_guard_executes_for_supported_and_unknown_versions():
+    import shutil
+    import subprocess
+    import pytest
+    bash = Path("C:/Program Files/Git/bin/bash.exe")
+    executable = str(bash) if bash.exists() else shutil.which("bash")
+    if not executable:
+        pytest.skip("Bash is unavailable")
+    source = Path("scripts/marzban.sh").read_text(encoding="utf-8")
+    body = source.split("mysql_source_version_supported() {", 1)[1].split("\n}", 1)[0]
+    script = 'MYSQL_TARGET_VERSION="26.7.0"\nmysql_source_version_supported() {' + body + '\n}\n'
+    script += 'mysql_source_version_supported 8.0.46 && mysql_source_version_supported 26.7.0 && ! mysql_source_version_supported 26.8.0 && ! mysql_source_version_supported unknown'
+    result = subprocess.run([executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_version_command_reports_and_enforces_release_integrity():

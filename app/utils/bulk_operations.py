@@ -59,7 +59,7 @@ def _selected_users(db: Session, actor: Admin | object, user_ids: list[int], *, 
     query = db.query(User).filter(User.id.in_(user_ids)).order_by(User.id)
     query = crud.apply_inbound_access_filter(query, marzhelp_policy.allowed_inbound_tags(db, dbactor))
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().populate_existing()
     users = query.all()
     found = {user.id for user in users}
     missing = sorted(set(user_ids) - found)
@@ -119,21 +119,11 @@ def preview_selection(db: Session, actor: Admin | object, values: BulkSelectionR
         duration_change += duration_delta
         status_change = status or status_change
         settings = db.get(MarzhelpAdminSettings, user.admin_id) if user.admin_id else None
-        if settings and billing_mode(settings) == BillingMode.ALLOCATED_TRAFFIC:
-            if traffic_delta < 0:
-                raise BulkOperationError("allocated_traffic_reduction_forbidden", "Admin cannot reduce allocated user traffic")
-            if traffic_delta > 0:
-                preset = (
-                    owner_pricing.duration_days_preset(db, abs(duration_delta))
-                    if duration_delta
-                    else owner_pricing.duration_preset(db, user.expire)
-                )
-                policy = owner_pricing.get_policy(db)
-                denominator = owner_pricing.GIB * 10_000
-                cost_toman += (
-                    traffic_delta * int(policy.price_per_gib_toman) * int(preset.multiplier_basis_points)
-                    + denominator - 1
-                ) // denominator
+        if settings and billing_mode(settings) == BillingMode.ALLOCATED_TRAFFIC and not admin_hierarchy.is_owner(db, dbactor):
+            cost_toman += owner_pricing.adjustment_price(
+                db, old_limit=user.data_limit, new_limit=changes.get("data_limit", user.data_limit),
+                old_expire=user.expire, new_expire=changes.get("expire", user.expire),
+            )
     return BulkSelectionPreview(
         user_count=len(users),
         traffic_change=traffic_change,
@@ -145,9 +135,30 @@ def preview_selection(db: Session, actor: Admin | object, values: BulkSelectionR
 
 
 def execute_selection(db: Session, actor: Admin | object, values: BulkSelectionRequest) -> BulkSelectionResponse:
+    dbactor = _db_actor(db, actor)
+    # Serialize replay checks for this actor; persist results in the same
+    # transaction as user changes, including deleted-user snapshots.
+    db.query(Admin).filter(Admin.id == dbactor.id).with_for_update().one()
+    fingerprint = _fingerprint(values.model_dump(mode="json"))
+    job = db.query(AdminBulkJob).filter_by(idempotency_key=values.operation_id).with_for_update().one_or_none()
+    if job is not None:
+        if job.actor_admin_id != dbactor.id or job.job_kind != "SELECTION" or job.payload_fingerprint != fingerprint:
+            raise BulkOperationError("idempotency_conflict", "Operation ID already belongs to another request", status_code=409)
+        results = [BulkSelectionResult.model_validate(row.result_details) for row in
+                   db.query(AdminBulkJobTarget).filter_by(job_id=job.id).order_by(AdminBulkJobTarget.sequence)]
+        db.commit()
+        return BulkSelectionResponse(operation_id=values.operation_id, success=job.success_count,
+                                     failed=job.failed_count, results=results)
     dbactor, users = _selected_users(db, actor, values.user_ids, lock=True)
+    job = AdminBulkJob(actor_admin_id=dbactor.id, target_admin_id=dbactor.id,
+                      job_kind="SELECTION", operation="selection", status="RUNNING",
+                      idempotency_key=values.operation_id, payload_fingerprint=fingerprint,
+                      total_count=len(users))
+    db.add(job)
+    db.flush()
     results: list[BulkSelectionResult] = []
     for user in users:
+        user_id, username, owner_admin_id = user.id, user.username, user.admin_id
         try:
             with db.begin_nested():
                 changes, _, _, _ = _selection_changes(user, values)
@@ -173,16 +184,29 @@ def execute_selection(db: Session, actor: Admin | object, values: BulkSelectionR
                         commit=False,
                         actor=dbactor,
                     )
-            results.append(BulkSelectionResult(user_id=user.id, username=user.username, status="SUCCESS"))
-        except Exception as exc:
+            results.append(BulkSelectionResult(user_id=user_id, username=username, status="SUCCESS"))
+        except (BulkOperationError, marzhelp_policy.MarzhelpPolicyError, admin_hierarchy.HierarchyError, ValueError) as exc:
             results.append(
                 BulkSelectionResult(
-                    user_id=user.id,
-                    username=user.username,
+                    user_id=user_id,
+                    username=username,
                     status="FAILED",
                     reason=str(exc)[:512],
                 )
             )
+        result = results[-1]
+        db.add(AdminBulkJobTarget(job_id=job.id, target_type="USER", target_id=user_id,
+                                 sequence=len(results), target_username=username,
+                                 owner_admin_id=owner_admin_id,
+                                 idempotency_key=f"selection:{job.id}:{user_id}",
+                                 payload_fingerprint=fingerprint, status=result.status,
+                                 attempts=1, retryable=False, result_details=result.model_dump(),
+                                 completed_at=datetime.utcnow()))
+    job.success_count = sum(result.status == "SUCCESS" for result in results)
+    job.failed_count = len(results) - job.success_count
+    job.processed_count = len(results)
+    job.status = "COMPLETE"
+    job.completed_at = datetime.utcnow()
     db.commit()
     success = sum(result.status == "SUCCESS" for result in results)
     return BulkSelectionResponse(

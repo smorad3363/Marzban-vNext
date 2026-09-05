@@ -94,3 +94,28 @@ def form_price(db: Session, settings: MarzhelpAdminSettings, *, data_limit: int 
         raise admin_hierarchy.HierarchyError("unlimited_form_traffic_forbidden", "Form cannot create unlimited traffic")
     numerator = int(data_limit) * int(policy.price_per_gib_toman) * int(preset.multiplier_basis_points)
     return (numerator + GIB * 10_000 - 1) // (GIB * 10_000)
+
+
+def adjustment_price(db: Session, *, old_limit: int | None, new_limit: int | None,
+                     old_expire: int | None, new_expire: int | None) -> int:
+    """Quote added traffic or a purchased duration extension; never refund edits."""
+    if not new_limit:
+        raise admin_hierarchy.HierarchyError("unlimited_form_traffic_forbidden", "Form requires finite traffic")
+    if old_limit is not None and new_limit < old_limit:
+        raise admin_hierarchy.HierarchyError("allocated_traffic_reduction_forbidden", "Admin cannot reduce allocated user traffic")
+    extension = max(int(new_expire or 0) - int(old_expire or 0), 0)
+    added = max(new_limit - int(old_limit or 0), 0)
+    if not extension and not added:
+        return 0
+    if extension:
+        if not old_expire or extension % 86400:
+            raise admin_hierarchy.HierarchyError("duration_preset_required", "Extension must match an Owner preset")
+        preset = duration_days_preset(db, extension // 86400)
+        volume = new_limit
+    else:
+        preset = duration_preset(db, new_expire)
+        volume = added
+    policy = get_policy(db)
+    denominator = GIB * 10_000
+    return (volume * int(policy.price_per_gib_toman) * int(preset.multiplier_basis_points)
+            + denominator - 1) // denominator

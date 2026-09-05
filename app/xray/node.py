@@ -78,6 +78,8 @@ class ReSTXRayNode:
         self._started = False
 
     def _prepare_config(self, config: XRayConfig):
+        from app.utils.access_groups import filter_node_config
+        config = filter_node_config(config, getattr(self, "node_id", None))
         for inbound in config.get("inbounds", []):
             streamSettings = inbound.get("streamSettings") or {}
             tlsSettings = streamSettings.get("tlsSettings") or {}
@@ -160,8 +162,12 @@ class ReSTXRayNode:
         self._session_id = res['session_id']
 
     def disconnect(self):
-        self.make_request("/disconnect", timeout=3)
-        self._session_id = None
+        try:
+            self.make_request("/disconnect", timeout=3)
+        finally:
+            self._session_id = None
+            self._started = False
+            self._api = None
 
     def get_version(self):
         res = self.make_request("/", timeout=3)
@@ -386,6 +392,8 @@ class RPyCXRayNode:
         return self.remote.fetch_xray_version()
 
     def _prepare_config(self, config: XRayConfig):
+        from app.utils.access_groups import filter_node_config
+        config = filter_node_config(config, getattr(self, "node_id", None))
         for inbound in config.get("inbounds", []):
             streamSettings = inbound.get("streamSettings") or {}
             tlsSettings = streamSettings.get("tlsSettings") or {}
