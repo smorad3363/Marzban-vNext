@@ -8,6 +8,17 @@ status: in_progress
 
 # Execution State
 
+## Publication checkpoint — resume here
+
+- Current source/release commit: `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`, `vnext-ui`, pushed to origin. No release tag yet.
+- Phase: F/G. GitHub Actions run `33958439544`, workflow `release-vnext.yml`, repository **smorad3363/Marzban-vNext** (always pass `--repo`; local gh default points upstream). Builds AMD64/ARM64 `ghcr.io/smorad3363/marzban:v5.2.0` and full-SHA tag; refuses overwrite. No automatic GitHub Release.
+- Fresh install and actual v5.1.0/MySQL8.0.46 upgrade passed. Evidence `output/playwright/release-fresh-install.log`, `release-upgrade.log`; upgrade marker `UPGRADE_V510_TO_V520_PASS`. Live upgraded lab healthy, owner `upgrade_owner`, disposable password in ignored fixture/test harness only. Original fresh-install evidence retained under `/opt/marzban-fresh-evidence` and `/var/lib/marzban-fresh-evidence` inside lab.
+- Real browser uploaded a canonical MySQL-generated ZIP and two reverse-ordered parts successfully, inspected mobile RTL/LTR; final local image includes rebuilt uploader. Screenshots `release-upload-rtl.png`, `release-upload-ltr.png`. UI error mapping eight assertions and Admin UX contract passed. Real isolated DB restore passed. No SMTP delivery attempted.
+- Final local candidate content digest: `sha256:4a97bd3890edfdb710ede02ac8a4a7bfebf5f5ca09b973ab8476223fb74ac1d4`; registry build may differ by platform/build environment. Verify published revision label/runtime/version, not equality to this local digest.
+- Exact next action: inspect the running publication job; if successful inspect/pull immutable published digest, verify runtime clients/version/compiled assets and revision `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`, create `v5.2.0` on that exact source commit, push tag and preserved branches/tags, publish GitHub Release with operator notes; then mark COMPLETE_RELEASED_V5.2.0 and commit/push final documentation separately. Do not move a published release tag to the docs-only handoff commit.
+- Dirty docs: [[RELEASE_v5.2.0]], [[FINAL_REPORT]], this file. Preserve user-owned untracked `Final Autonomous Completion Prompt.md`; never commit it. No production data touched.
+- Blocker: none. Registry build pending; do not claim completion yet.
+
 ## Live release checkpoint — installer work
 
 - Latest completed evidence: actual Linux Fresh Install, `help/version/status`, overwrite refusal and downgrade refusal passed in Docker-in-Docker. HTTP complete/split upload and Owner boundary passed. Real MySQL `26.7.0` archive generation and restore into empty `release_restore_test` passed (17,211 bytes, two parts); source remained intact.

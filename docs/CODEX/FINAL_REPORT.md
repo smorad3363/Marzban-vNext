@@ -3,10 +3,22 @@ title: vNext Final Report
 tags:
   - marzban-vnext
   - final-report
-status: complete
+status: publication_in_progress
 ---
 
 # Final Report
+
+## Current release state — v5.2.0
+
+This section supersedes the historical implementation report below. Release source commit is `a1dad79b159d0f00895a60948b41a5d7f3dbdd28`, pushed on `vnext-ui`. GHCR publication run `33958439544` is in progress; final tag/Release and registry parity are pending. See [[RELEASE_v5.2.0]] for exact operator procedures and [[STATE]] for resume state.
+
+Actual Linux Fresh Install and v5.1.0/MySQL 8.0.46 Upgrade to v5.2.0/MySQL 26.7.0 passed in isolated Docker-in-Docker. Owner, sentinel, source datadir, logical dumps and migration head were preserved. Real backup generation, full/split upload and restore into a separate empty database passed. The production image now includes pinned Oracle MySQL clients; runtime CLI shebang and installer/version/recovery safety were corrected. Email/SMTP remains frozen.
+
+Focused consolidated evidence: `62 passed, 2 failed, 1 skipped`; both failures were stale source-contract tests, fixed and directly verified (`3 passed`). The skip is intentionally unsupported SQLite migration coverage. All three live MySQL integration tests ran successfully. Additional Plan renewal retry accounting passed after updating its fixture to current Owner-management/Plan-only policy. UI error mapping: eight assertions; Admin UX contract passed. Production frontend generated; real browser full/split uploader and mobile direction checks passed. No full suite rerun.
+
+Restore is **offline-only**; the previous statement promising online pre-restore mutation below is historical and no longer true. Review reports [[ASTRA_CORE_REVIEW]] and [[ASTRA_UI_REVIEW]] remain intact. `vnext-core` and reviewed checkpoint tags were not changed.
+
+## Historical pre-review implementation report
 
 ## Outcome
 
