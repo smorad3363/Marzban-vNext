@@ -3,10 +3,26 @@ title: Codex Execution State
 tags:
   - marzban-vnext
   - execution-state
-status: in_progress
+status: COMPLETE_RELEASED_V5.2.0
 ---
 
 # Execution State
+
+## COMPLETE_RELEASED_V5.2.0
+
+- Phase A-G complete. Release source/tag commit: `2d8df17b526236c9980ade37d802531dbca0d06f`; Git tag `v5.2.0` resolves exactly to it. Reviewed Core/UI checkpoints remain ancestors and unchanged.
+- Branch `vnext-ui` is pushed with post-release workflow and final documentation commits. User-owned untracked `Final Autonomous Completion Prompt.md` remains local and was never published.
+- Image: `ghcr.io/smorad3363/marzban-vnext:v5.2.0`; multi-platform digest `sha256:605daaf3757db25895ca17e6e31752a449e3bd96e4d9df2d0fe6196166a10527`; immutable full-SHA tag also published. AMD64/ARM64 manifest, revision label, runtime `5.2.0`, MySQL client `26.7.0`, CLI and compiled uploader verified by successful run `33959724851`.
+- GitHub Release: https://github.com/smorad3363/Marzban-vNext/releases/tag/v5.2.0 (published, not draft/prerelease). Publication run `33959015635` passed.
+- Verification: actual disposable Fresh Install and v5.1.0/MySQL 8.0.46 Upgrade passed; data/Owner/source datadir/recovery backups retained. Real complete and multipart uploads, canonical backup validation, isolated MySQL restore, focused Core/accounting/auth/device/node paths, TypeScript/build and responsive RTL/LTR browser smoke passed. One intentional SQLite migration skip remains; all requested live MySQL tests ran.
+- Email/SMTP implementation and settings were not changed or exercised. Online restore remains intentionally offline-only for data safety. No production data was accessed.
+- Exact Fresh Install, Upgrade and Rollback procedures: [[RELEASE_v5.2.0]]. Final report: [[FINAL_REPORT]].
+- Publication note: upstream-owned package `ghcr.io/smorad3363/marzban` denied this repository's `write_package`; nothing was overwritten. Independent package `marzban-vnext` is the supported release path. Private source/package require `repo` and `read:packages` authentication.
+- Exact next action: none. For a new task, start from this section and `git status`; do not rerun completed release checks.
+- Blocker: none.
+
+> [!note] Historical checkpoints
+> Sections below preserve interruption history and are superseded by the completed state above.
 
 ## Publication checkpoint — resume here
 

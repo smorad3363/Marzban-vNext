@@ -3,14 +3,14 @@ title: vNext Final Report
 tags:
   - marzban-vnext
   - final-report
-status: publication_in_progress
+status: complete
 ---
 
 # Final Report
 
 ## Current release state — v5.2.0
 
-This section supersedes the historical implementation report below. Release source commit is `2d8df17b526236c9980ade37d802531dbca0d06f`, pushed on `vnext-ui`. GHCR publication run `33959015635` is in progress; final tag/Release and registry parity are pending. See [[RELEASE_v5.2.0]] for exact operator procedures and [[STATE]] for resume state.
+This section supersedes the historical implementation report below. Release source commit and tag target are `2d8df17b526236c9980ade37d802531dbca0d06f`. `v5.2.0` and the GitHub Release are published. GHCR publication run `33959015635` and published-image verification run `33959724851` passed. Image `ghcr.io/smorad3363/marzban-vnext:v5.2.0` resolves to `sha256:605daaf3757db25895ca17e6e31752a449e3bd96e4d9df2d0fe6196166a10527`. See [[RELEASE_v5.2.0]] for exact operator procedures.
 
 Actual Linux Fresh Install and v5.1.0/MySQL 8.0.46 Upgrade to v5.2.0/MySQL 26.7.0 passed in isolated Docker-in-Docker. Owner, sentinel, source datadir, logical dumps and migration head were preserved. Real backup generation, full/split upload and restore into a separate empty database passed. The production image now includes pinned Oracle MySQL clients; runtime CLI shebang and installer/version/recovery safety were corrected. Email/SMTP remains frozen.
 

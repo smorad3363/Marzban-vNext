@@ -1,14 +1,14 @@
 ---
 title: Release v5.2.0
-status: publication_in_progress
+status: complete
 tags: [marzban-vnext, release]
 ---
 
 # v5.2.0 operator handoff
 
 - Release commit: `2d8df17b526236c9980ade37d802531dbca0d06f`.
-- Planned Git tag: `v5.2.0` at that exact commit; publication is not complete yet.
-- Image: `ghcr.io/smorad3363/marzban-vnext:v5.2.0` (AMD64 and ARM64); registry build in progress.
+- Git tag: `v5.2.0` at that exact commit.
+- Image: `ghcr.io/smorad3363/marzban-vnext:v5.2.0` (AMD64 and ARM64), digest `sha256:605daaf3757db25895ca17e6e31752a449e3bd96e4d9df2d0fe6196166a10527`.
 - Release location: https://github.com/smorad3363/Marzban-vNext/releases/tag/v5.2.0
 
 ## Fresh Install
@@ -16,6 +16,8 @@ tags: [marzban-vnext, release]
 Run in a root shell on a clean Linux host with Docker/Compose available. The repository is private: authenticate GitHub CLI with repository read access first (`gh auth login`). If the container package is private, authenticate Docker to GHCR separately with a credential that has `read:packages`; never paste credentials into public logs.
 
 ```bash
+: "${GHCR_TOKEN:?Export a GitHub token with read:packages access}"
+printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 export GH_TOKEN="$(gh auth token)"
 installer=$(mktemp /tmp/marzban-install.XXXXXXXX)
 gh api -H 'Accept: application/vnd.github.raw+json' \
@@ -32,6 +34,8 @@ marzban version
 Keep an independent verified off-host backup before starting. Run as root. This explicitly installs the new installer first: an old CLI may otherwise select the old repository or unsafe update behavior.
 
 ```bash
+: "${GHCR_TOKEN:?Export a GitHub token with read:packages access}"
+printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 export GH_TOKEN="$(gh auth token)"
 installer=$(mktemp /tmp/marzban-update.XXXXXXXX)
 gh api -H 'Accept: application/vnd.github.raw+json' \
@@ -73,6 +77,6 @@ Canonical panel ZIP/multipart uploads are validated in the UI; actual restoratio
 - Focused consolidated Core: 62 passed, two stale test contracts corrected, affected three checks passed; one intentional SQLite skip. All three live MySQL migration tests ran. Renewal fixture updated to Owner-managed/Plan-only policy; affected retry accounting passed.
 - Real backup generation and isolated empty-DB restore passed. HTTP full/split upload, missing-part and Owner-boundary checks passed. Real browser full/split uploads and mobile RTL/LTR passed; no page exceptions in that smoke.
 - TypeScript and production Vite bundle generated; pinned MySQL client binaries execute inside the final local image. Existing Vite chunk/directive warnings remain.
-- Registry-image parity and final publication are pending; see [[STATE]]. No real email/Telegram delivery or production data was used.
+- Published-image gate `33959724851` passed: manifest contains AMD64/ARM64; revision, runtime `5.2.0`, MySQL client `26.7.0`, CLI and compiled uploader match. Publication workflow `33959015635` passed. No real email/Telegram delivery or production data was used.
 
 Known limitations: private source requires authentication; offline-only Restore; Persian-first interface with some English labels; existing Access Group management remains Owner API-only. Reviewed Core/UI evidence is preserved in [[ASTRA_CORE_REVIEW]] and [[ASTRA_UI_REVIEW]].
