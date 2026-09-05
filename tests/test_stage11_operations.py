@@ -241,3 +241,23 @@ def test_configured_backup_schedule_claim_and_delivery_failure_keep_local_copy(m
     assert artifact.generation_status == "SUCCESS"
     assert artifact.delivery_status == "FAILED"
     assert archive.read_bytes() == b"local recovery copy"
+
+
+def test_legacy_cleanup_does_not_override_panel_archive_retention(tmp_path):
+    from app.db.models import BackupArtifact
+    from app.utils.stage11_operations import purge_delivered_backup_files
+    db = session()
+    old = now() - timedelta(days=10)
+    panel = tmp_path / "retained.panel-backup.zip"
+    legacy = tmp_path / "old.sql.aesgcm"
+    panel.write_bytes(b"panel")
+    legacy.write_bytes(b"legacy")
+    for period, path in (("old-panel", panel), ("old-legacy", legacy)):
+        db.add(BackupArtifact(period_key=period, database_name="test", encrypted_path=str(path),
+                              generation_status="SUCCESS", delivery_status="DELIVERED",
+                              delivered_at=old, created_at=old))
+    db.add(BackupArtifact(period_key="newest", database_name="test", generation_status="SUCCESS"))
+    db.commit()
+    assert purge_delivered_backup_files(db) == 1
+    assert panel.exists()
+    assert not legacy.exists()

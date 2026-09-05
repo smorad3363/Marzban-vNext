@@ -128,7 +128,7 @@ def get_public_ip():
         resp = requests.get('https://ifconfig.io/ip', timeout=5).text.strip()
         if ipaddress.IPv4Address(resp).is_global:
             return resp
-    except requests.exceptions.RequestException:
+    except (requests.exceptions.RequestException, ValueError):
         pass
     finally:
         requests.packages.urllib3.util.connection.HAS_IPV6 = True

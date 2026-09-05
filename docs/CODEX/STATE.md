@@ -16,6 +16,7 @@ status: core-review-verified
 - Fixed: live migration errors/resumability, migration write window/downgrade guard, bulk replay and billing, central policy, node scope/stale state, backup validation/scheduling, and version-integrity gaps. Details: [[ASTRA_CORE_REVIEW]].
 - Consolidated verification: `168 passed, 2 failed, 1 skipped, 1 deselected`; two stale collector fixtures corrected, affected file `3 passed`. The remaining skip is an intentionally disabled SQLite migration test; the three requested MySQL tests are not skipped.
 - Dependencies: all 68 installed packages compatible; no upgrades. Bash syntax and downgrade guard passed.
+- Merged-head follow-ups: IPv6 discovery startup fallback and legacy/panel retention isolation fixed on Core; affected regressions `2 passed`.
 - Direct follow-ups: accounting retries `3 passed`, retained-group renewal `1 passed`, transport splitting `1 passed`. No consolidated suite repeat.
 - Safety change: online restore fails closed with `offline_restore_required`; use isolated offline recovery as documented.
 - Next: commit Core fixes, create `checkpoint-core-reviewed`, merge into `vnext-ui` without UI changes, verify merged migration head, push requested branches/tag under repository completion rules.

@@ -97,6 +97,7 @@ def purge_delivered_backup_files(db: Session, *, current: datetime | None = None
         .order_by(BackupArtifact.created_at.desc(), BackupArtifact.id.desc()).limit(1).scalar())
     rows = (db.query(BackupArtifact)
         .filter(BackupArtifact.delivery_status == "DELIVERED",
+                BackupArtifact.encrypted_path.like("%.aesgcm"),
                 BackupArtifact.delivered_at < current - timedelta(hours=48),
                 BackupArtifact.id != newest_valid_id)
         .order_by(BackupArtifact.id).limit(batch_size).all())

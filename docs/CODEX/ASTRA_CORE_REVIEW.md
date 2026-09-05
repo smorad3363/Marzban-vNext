@@ -36,6 +36,8 @@ Review work starts from `vnext-core` commit `cb602a41277151223dc729754b66a82dc47
 | Backup integrity | Extra ZIP members were not checksummed, duplicates were accepted, manifest/decompression size was unbounded, and `.env` could be treated as a directory. | Require complete member checksums, reject duplicate/unsafe paths, bound members/expanded bytes/manifest, prevalidate every restore destination, handle dotfiles, restrict generated archive permissions. Archive and prevalidation regressions. |
 | Backup execution | Persisted schedule/destination settings were not connected to backup jobs; manual backups never delivered to configured destinations. | Scheduled period claims prevent duplicate worker generation; local complete archives use configured email/Telegram delivery, retain files and record failure on delivery errors. Mocked scheduling/delivery-failure regression; no external messages sent during tests. |
 | Online restore | A `.maintenance` marker did not stop API, scheduler, or accounting writers during nontransactional SQL import. | Fail closed with HTTP `409`, code `offline_restore_required`, before upload or database mutation. Online restore is intentionally disabled; offline recovery is required. |
+| Startup discovery | An IPv6 response from the last IPv4 discovery service raised `AddressValueError` during app/Alembic import. | Treat invalid address responses as discovery failures and continue fallback; deterministic startup regression. |
+| Backup retention | Legacy 48-hour cleanup also matched newly delivered panel archives, overriding configured count retention. | Restrict legacy cleanup to its encrypted SQL format; panel archive retention remains controlled by configured policy. |
 
 ## Verification
 
@@ -44,6 +46,7 @@ Review work starts from `vnext-core` commit `cb602a41277151223dc729754b66a82dc47
 - Consolidated focused Core run: `168 passed, 2 failed, 1 skipped, 1 deselected`. The two failures were collector fixtures lacking node registration; corrected fixture file rerun: `3 passed`. No full-suite repeat was performed.
 - Additional directly affected accounting retry regressions: `3 passed`, covering SQLAlchemy-wrapped MySQL errors rather than raw driver exceptions.
 - Final affected-path follow-ups: retained/archived Access Group renewal `1 passed`; transport splitting `1 passed`. Renewals reapply the current retained group and reject archived groups before charging.
+- Merged-head follow-up fixes: startup IPv6 discovery and legacy/panel retention isolation `2 passed`. These were committed back to Core before final integration/publication.
 - The skipped test is the deliberately disabled SQLite full-migration test, not one of the three requested live-MySQL tests. The extra MySQL refund test was not part of this bounded verification and was explicitly deselected.
 - Dependency verification: `uv pip check --python .venv-win/Scripts/python.exe` reports all 68 installed packages compatible. APScheduler remains pinned at `3.11.0`; no dependency changes.
 - Focused Python compilation, full installer Bash syntax, and executable Bash downgrade-guard check passed. Existing UI assets/source remain untouched.
