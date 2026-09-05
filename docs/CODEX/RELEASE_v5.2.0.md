@@ -15,6 +15,8 @@ tags: [marzban-vnext, release]
 
 Run on a clean Linux host. No GitHub token is required. The installer resolves the latest published release. It pulls the exact release image when public; if GHCR denies anonymous access, it builds that same tagged release from the public source automatically.
 
+The installer resolves the release tag to its exact Git commit and checks the image's `org.opencontainers.image.revision` label. A cached image with the same version tag but stale or missing revision metadata is rebuilt from that exact commit instead of being trusted.
+
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 marzban create-owner YOUR_USERNAME

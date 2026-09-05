@@ -22,6 +22,7 @@ MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban-vnext}"
 MYSQL_TARGET_VERSION="26.7.0"
 MYSQL_TARGET_IMAGE="mysql:${MYSQL_TARGET_VERSION}"
 CLI_VERSION_FILE="$APP_DIR/.cli-version"
+RELEASE_REVISION_FILE="$APP_DIR/.release-revision"
 MYSQL_MIGRATION_DIR="$APP_DIR/.mysql-migration"
 MYSQL_MIGRATION_STATE="$MYSQL_MIGRATION_DIR/state"
 MARZBAN_FILES_URL_PREFIX="https://raw.githubusercontent.com/${MARZBAN_GITHUB_REPO}/refs/heads/${MARZBAN_GITHUB_BRANCH}"
@@ -241,10 +242,21 @@ cleanup_release_build_dir() {
     esac
 }
 
+release_commit_for_version() {
+    local requested_version="$1"
+    github_download -fsSL "https://api.github.com/repos/${MARZBAN_GITHUB_REPO}/commits/${requested_version}" 2>/dev/null |
+        jq -r '.sha // empty'
+}
+
+marzban_image_revision() {
+    local image="$1"
+    docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image" 2>/dev/null || true
+}
+
 build_marzban_image_from_source() {
     local requested_version="$1"
-    local source_ref image build_dir archive source_dir
-    source_ref=$(marzban_script_ref "$requested_version")
+    local source_commit="$2"
+    local image build_dir archive source_dir
     image=$(marzban_docker_image "$requested_version")
     build_dir=$(mktemp -d /tmp/marzban-release-build.XXXXXXXX)
     archive="$build_dir/source.tar.gz"
@@ -252,7 +264,7 @@ build_marzban_image_from_source() {
     mkdir -p "$source_dir"
 
     colorized_echo yellow "Published image is not publicly readable; building ${requested_version} from the public release source."
-    if ! github_download -fsSL "https://github.com/${MARZBAN_GITHUB_REPO}/archive/refs/tags/${source_ref}.tar.gz" -o "$archive"; then
+    if ! github_download -fsSL "https://github.com/${MARZBAN_GITHUB_REPO}/archive/${source_commit}.tar.gz" -o "$archive"; then
         cleanup_release_build_dir "$build_dir"
         colorized_echo red "Could not download source for ${requested_version}."
         return 1
@@ -262,7 +274,11 @@ build_marzban_image_from_source() {
         colorized_echo red "Could not extract source for ${requested_version}."
         return 1
     fi
-    if ! docker build --pull --tag "$image" "$source_dir"; then
+    if ! docker build --pull \
+        --label "org.opencontainers.image.source=https://github.com/${MARZBAN_GITHUB_REPO}" \
+        --label "org.opencontainers.image.revision=${source_commit}" \
+        --label "org.opencontainers.image.version=${requested_version}" \
+        --tag "$image" "$source_dir"; then
         cleanup_release_build_dir "$build_dir"
         colorized_echo red "Could not build ${image}."
         return 1
@@ -273,20 +289,46 @@ build_marzban_image_from_source() {
 
 ensure_marzban_image() {
     local requested_version="$1"
-    local image
+    local image expected_revision actual_revision
     image=$(marzban_docker_image "$requested_version")
-    if docker image inspect "$image" >/dev/null 2>&1; then
-        return 0
-    fi
-    if docker pull "$image" >/dev/null 2>&1; then
-        colorized_echo green "Downloaded ${image}."
-        return 0
-    fi
     if ! is_release_version "$requested_version"; then
+        if docker pull "$image"; then
+            return 0
+        fi
         colorized_echo red "Could not pull ${image}; source fallback supports release versions only."
         return 1
     fi
-    build_marzban_image_from_source "$requested_version"
+    expected_revision=$(release_commit_for_version "$requested_version")
+    if [[ ! "$expected_revision" =~ ^[0-9a-f]{40}$ ]]; then
+        colorized_echo red "Could not resolve the source commit for ${requested_version}."
+        return 1
+    fi
+    MARZBAN_VERIFIED_REVISION="$expected_revision"
+    if docker pull "$image" >/dev/null 2>&1; then
+        actual_revision=$(marzban_image_revision "$image")
+        if [ "$actual_revision" = "$expected_revision" ]; then
+            colorized_echo green "Downloaded verified ${image}."
+            return 0
+        fi
+        colorized_echo yellow "Published image revision does not match ${expected_revision}; rebuilding verified source."
+    elif docker image inspect "$image" >/dev/null 2>&1; then
+        actual_revision=$(marzban_image_revision "$image")
+        if [ "$actual_revision" = "$expected_revision" ]; then
+            colorized_echo green "Using verified local ${image}."
+            return 0
+        fi
+        colorized_echo yellow "Cached ${image} is stale or unverified; rebuilding it."
+    fi
+    build_marzban_image_from_source "$requested_version" "$expected_revision"
+}
+
+record_marzban_release_revision() {
+    if [[ ! "${MARZBAN_VERIFIED_REVISION:-}" =~ ^[0-9a-f]{40}$ ]]; then
+        colorized_echo red "Verified release revision is unavailable."
+        return 1
+    fi
+    printf '%s\n' "$MARZBAN_VERIFIED_REVISION" > "$RELEASE_REVISION_FILE"
+    chmod 644 "$RELEASE_REVISION_FILE"
 }
 
 configured_service_image() {
@@ -319,7 +361,7 @@ version_command() {
     detect_compose
     command -v yq >/dev/null 2>&1 || { colorized_echo red "yq is required."; exit 1; }
 
-    local cli_version configured_image container_id runtime_version running_image digest
+    local cli_version configured_image container_id runtime_version running_image digest revision
     cli_version="$CLI_RELEASE_VERSION"
     configured_image=$(configured_service_image marzban)
     container_id=$(running_service_container marzban)
@@ -327,9 +369,11 @@ version_command() {
     if [ -n "$container_id" ]; then
         running_image=$(docker inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || echo "unavailable")
         digest=$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$running_image" 2>/dev/null || echo "unavailable")
+        revision=$(marzban_image_revision "$running_image")
     else
         running_image="not-running"
         digest="unavailable"
+        revision="unavailable"
     fi
 
     echo "CLI version: ${cli_version}"
@@ -337,6 +381,7 @@ version_command() {
     echo "Configured Docker image: ${configured_image}"
     echo "Running Docker image: ${running_image}"
     echo "Immutable image digest: ${digest}"
+    echo "Source revision: ${revision:-unavailable}"
     local mysql_id mysql_version
     mysql_id=$(running_service_container mysql)
     mysql_version=$(mysql_upgrade_server_version "$mysql_id" 2>/dev/null || echo "unavailable")
@@ -347,7 +392,7 @@ version_command() {
 
 verify_version_integrity() {
     local expected_version="$1"
-    local expected_image configured_image container_id running_image runtime_version cli_version digest
+    local expected_image configured_image container_id running_image runtime_version cli_version digest expected_revision running_revision
     expected_image=$(marzban_docker_image "$expected_version")
     configured_image=$(configured_service_image marzban)
     container_id=$(running_service_container marzban)
@@ -360,11 +405,15 @@ verify_version_integrity() {
     runtime_version=$(runtime_app_version | tr -d '\r[:space:]' || true)
     cli_version=$(cat "$CLI_VERSION_FILE" 2>/dev/null | tr -d '\r[:space:]' || true)
     digest=$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$running_image" 2>/dev/null || true)
+    expected_revision=$(cat "$RELEASE_REVISION_FILE" 2>/dev/null | tr -d '\r[:space:]' || true)
+    running_revision=$(marzban_image_revision "$running_image")
 
     [ "$configured_image" = "$expected_image" ] || { colorized_echo red "Version integrity failed: configured image is ${configured_image}, expected ${expected_image}."; return 1; }
     [ "$running_image" = "$expected_image" ] || { colorized_echo red "Version integrity failed: running image is ${running_image}, expected ${expected_image}."; return 1; }
     [ "$runtime_version" = "${expected_version#v}" ] || { colorized_echo red "Version integrity failed: runtime is ${runtime_version}, expected ${expected_version#v}."; return 1; }
     [ "$cli_version" = "$expected_version" ] || { colorized_echo red "Version integrity failed: CLI is ${cli_version}, expected ${expected_version}."; return 1; }
+    [[ "$expected_revision" =~ ^[0-9a-f]{40}$ ]] || { colorized_echo red "Version integrity failed: verified source revision is unavailable."; return 1; }
+    [ "$running_revision" = "$expected_revision" ] || { colorized_echo red "Version integrity failed: running source revision is ${running_revision:-unavailable}, expected ${expected_revision}."; return 1; }
     local installed_cli_version mysql_id mysql_version
     installed_cli_version=$(sed -n 's/^CLI_RELEASE_VERSION="\([^"]*\)"$/\1/p' /usr/local/bin/marzban)
     [ "$installed_cli_version" = "$expected_version" ] || { colorized_echo red "Version integrity failed: installed CLI content does not match ${expected_version}."; return 1; }
@@ -1432,6 +1481,7 @@ install_command() {
         if check_version_exists "$marzban_version"; then
             ensure_marzban_image "$marzban_version" || exit 1
             install_marzban "$marzban_version" "$database_type"
+            record_marzban_release_revision || exit 1
             echo "Installing $marzban_version version"
         else
             echo "Version $marzban_version does not exist. Please enter a valid version (e.g. v0.5.2)"
@@ -1971,6 +2021,7 @@ update_command() {
         colorized_echo red "Update failed. Restored previous image: ${previous_image}"
         exit 1
     fi
+    record_marzban_release_revision || exit 1
 
     colorized_echo blue "Restarting Marzban's services"
     down_marzban

@@ -114,7 +114,7 @@ MySQL is the only supported database. This command installs the latest published
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/smorad3363/Marzban-vNext/refs/heads/vnext-ui/scripts/marzban.sh)" @ install --database mysql
 ```
 
-The installer uses the exact release image when it is publicly readable. If GHCR denies anonymous access, it automatically builds the same tagged release from public source. No PAT is required.
+The installer verifies the image's exact release-commit label. It rejects stale cached images that reuse the same version tag. If GHCR denies anonymous access, it automatically builds the same tagged release from public source. No PAT is required.
 
 Update an existing installation to the latest published release with:
 

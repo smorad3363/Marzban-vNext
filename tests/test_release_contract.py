@@ -24,7 +24,13 @@ def test_release_version_and_install_rollback_contract():
     assert 'requested_version="latest"' in installer
     assert 'install_marzban_script_from_repo "$marzban_version" "$MARZBAN_GITHUB_BRANCH"' in installer
     assert 'update_marzban_script "$requested_version" "$MARZBAN_GITHUB_BRANCH"' in installer
-    assert 'docker build --pull --tag "$image" "$source_dir"' in installer
+    assert 'release_commit_for_version()' in installer
+    assert 'marzban_image_revision()' in installer
+    assert 'record_marzban_release_revision()' in installer
+    assert 'echo "Source revision: ${revision:-unavailable}"' in installer
+    assert 'running_revision" = "$expected_revision' in installer
+    assert '--label "org.opencontainers.image.revision=${source_commit}"' in installer
+    assert 'Cached ${image} is stale or unverified; rebuilding it.' in installer
     assert 'script_ref_path="refs/heads/${script_ref}"' in installer
     assert '[[ -z "${BASH_SOURCE[0]:-}" || "${BASH_SOURCE[0]}" == "$0" ]]' in installer
     assert 'Configured MySQL image:' in installer
