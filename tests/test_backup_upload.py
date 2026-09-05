@@ -72,3 +72,28 @@ def test_legacy_missing_tail_rejected_by_canonical_validator(tmp_path):
         with complete_upload(parts(archive_bytes(), legacy=True)[:-1], temp_dir=tmp_path) as result:
             validate_panel_backup(result.path)
     assert not list(tmp_path.iterdir())
+
+
+def test_http_upload_contract_and_owner_boundary(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.routers import backup as endpoint
+
+    application = FastAPI()
+    application.include_router(endpoint.router)
+    application.dependency_overrides[endpoint.get_db] = lambda: None
+    application.dependency_overrides[endpoint.Admin.get_current] = lambda: SimpleNamespace()
+    monkeypatch.setattr(endpoint.admin_hierarchy, "is_owner", lambda *_: True)
+    with TestClient(application) as client:
+        data = archive_bytes()
+        full = client.post('/api/owner/backups/validate', files={'backup': ('backup.zip', data)})
+        assert full.status_code == 200
+        split = client.post('/api/owner/backups/validate', files=[('backups', (p.filename, p.file.getvalue())) for p in parts(data)[::-1]])
+        assert split.status_code == 200
+        assert split.json()['validation_token'] == full.json()['validation_token']
+        assert split.json()['part_count'] == 3
+        missing = client.post('/api/owner/backups/validate', files=[('backups', (p.filename, p.file.getvalue())) for p in parts(data)[1:]])
+        assert missing.status_code == 422
+        assert missing.json()['detail'] == {'code': 'backup_missing_part', 'part': 1, 'total': 3}
+        monkeypatch.setattr(endpoint.admin_hierarchy, "is_owner", lambda *_: False)
+        assert client.post('/api/owner/backups/validate', files={'backup': ('backup.zip', data)}).status_code == 403

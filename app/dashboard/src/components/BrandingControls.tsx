@@ -50,7 +50,7 @@ export const BrandingControls: FC<Props> = ({ theme, hasLogo }) => {
       <HStack spacing={1}>
         <Input ref={fileRef} display="none" type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} />
         <Tooltip label="انتخاب لوگو (PNG، JPG یا WebP)">
-          <IconButton aria-label="انتخاب لوگو" size="xs" variant="ghost" isLoading={logoMutation.isLoading} icon={<ArrowUpTrayIcon width={15} />} onClick={() => fileRef.current?.click()} />
+          <IconButton color="gray.200" aria-label="انتخاب لوگو" size="xs" variant="ghost" isLoading={logoMutation.isLoading} icon={<ArrowUpTrayIcon width={15} />} onClick={() => fileRef.current?.click()} />
         </Tooltip>
         {hasLogo && <Tooltip label="بازگشت به لوگوی پیش‌فرض"><IconButton aria-label="حذف لوگوی سفارشی" size="xs" variant="ghost" colorScheme="red" isLoading={removeMutation.isLoading} icon={<TrashIcon width={15} />} onClick={() => removeMutation.mutate()} /></Tooltip>}
       </HStack>

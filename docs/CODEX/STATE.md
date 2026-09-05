@@ -10,6 +10,11 @@ status: in_progress
 
 ## Live release checkpoint — installer work
 
+- Latest completed evidence: actual Linux Fresh Install, `help/version/status`, overwrite refusal and downgrade refusal passed in Docker-in-Docker. HTTP complete/split upload and Owner boundary passed. Real MySQL `26.7.0` archive generation and restore into empty `release_restore_test` passed (17,211 bytes, two parts); source remained intact.
+- Consolidated Core gate: `62 passed, 2 failed, 1 skipped`; failures were stale source-contract fixtures (`_save_upload` removal and old installer defaults), corrected; affected three checks passed. Skip is explicitly disabled SQLite coverage, not live MySQL. All three live migration tests were included against disposable `release_final_marzban_test` on port `33317`.
+- Additional runtime findings fixed: missing MySQL client binaries, Windows CLI shebang, backup dump requiring global privileges. Image now copies Oracle `mysql`/`mysqldump` from pinned `mysql:26.7.0` (MariaDB client was tested and rejected for `SHOW PACKAGE STATUS` incompatibility); dump uses `--no-tablespaces --set-gtid-purged=OFF`. Read-only `.env` mount added for complete configuration backups. No Email/SMTP changes.
+- Browser real-login/Owner dashboard passed; initial 401 before login is expected, not an application exception. Fresh-image build overlapped frontend build and captured old bundle; do NOT treat that as final upload UI evidence. Wait for `release-ui-followup-build.log`, then build final candidate and inspect actual bundled uploader. Sidebar Settings/theme/logo controls had unreadable light-mode foreground; limited explicit colors and Persian Settings label fixed.
+- Remaining mandatory work: actual v5.1.0 upgrade (baseline image downloaded inside lab), updated-image/browser upload smoke, final image runtime/CLI parity, reviewed branch/tag publication and GitHub Release/operator commands. No final release published yet.
 - Branch: `vnext-ui`; A+B+C committed as `a2ddd44cedc52d597bbf1c7f294feef9159e60f5`. Earlier reviewed checkpoints remain unchanged.
 - Current phase: D, installer safety implementation; E/F/G are NOT complete. `VERSION`/runtime/compose are prepared for `5.2.0`, not released.
 - A+B+C verification: 14 backup tests, 8 UI-error assertions, existing UX contract and TypeScript passed. No final consolidated suite yet.

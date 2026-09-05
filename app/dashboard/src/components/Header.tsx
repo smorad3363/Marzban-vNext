@@ -149,7 +149,7 @@ export const Header: FC = () => {
           </Box>
         </HStack>
         <HStack display={{ base: "flex", lg: "none" }} spacing={1} flexShrink={0}>
-          <IconButton onClick={toggleColorMode} size="sm" variant="ghost" aria-label={colorMode === "dark" ? "Use light theme" : "Use dark theme"} icon={colorMode === "dark" ? <SunIcon width={19} /> : <MoonIcon width={19} />} />
+          <IconButton color="gray.200" onClick={toggleColorMode} size="sm" variant="ghost" aria-label={colorMode === "dark" ? "Use light theme" : "Use dark theme"} icon={colorMode === "dark" ? <SunIcon width={19} /> : <MoonIcon width={19} />} />
           <IconButton color="white" minW="44px" minH="44px" onClick={() => setMobileMenuOpen((value) => !value)} size="sm" variant="outline" aria-label={mobileMenuOpen ? "بستن منو" : "بازکردن منو"} aria-expanded={mobileMenuOpen} icon={mobileMenuOpen ? <XMarkIcon width={20} /> : <Bars3Icon width={20} />} />
         </HStack>
       </HStack>
@@ -210,7 +210,7 @@ export const Header: FC = () => {
             aria-current={isDeviceLimitPage ? "page" : undefined}
           >{t("deviceLimit.nav")}</Button>
         )}
-        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>Settings</Button>}
+        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} color={isSettingsPage ? "white" : "gray.200"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>تنظیمات</Button>}
         {(
           <Button
             as={Link}
@@ -234,7 +234,7 @@ export const Header: FC = () => {
         {canManage && <Button as={Link} to="/admins/" size="md" variant={isAdminsPage ? "solid" : "ghost"} colorScheme={isAdminsPage ? "primary" : "gray"} color={isAdminsPage ? "#07130e" : "gray.200"} leftIcon={<AdminsNavIcon />} justifyContent="flex-start" aria-current={isAdminsPage ? "page" : undefined}>{t("admins.nav")}</Button>}
         {isOwner && <Button as={Link} to="/device-limits/" size="md" variant={isDeviceLimitPage ? "solid" : "ghost"} colorScheme={isDeviceLimitPage ? "primary" : "gray"} color={isDeviceLimitPage ? "#07130e" : "gray.200"} leftIcon={<DeviceLimitNavIcon />} justifyContent="flex-start" aria-current={isDeviceLimitPage ? "page" : undefined}>{t("deviceLimit.nav")}</Button>}
         <Button as={Link} to="/audit-logs/" size="md" variant={isAuditPage ? "solid" : "ghost"} colorScheme={isAuditPage ? "cyan" : "gray"} color={isAuditPage ? "#06161a" : "gray.200"} leftIcon={<AuditNavIcon />} justifyContent="flex-start" aria-current={isAuditPage ? "page" : undefined}>{t("audit.nav")}</Button>
-        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>Settings</Button>}
+        {isOwner && <Button as={Link} to="/settings/" size="md" variant={isSettingsPage ? "solid" : "ghost"} colorScheme={isSettingsPage ? "primary" : "gray"} color={isSettingsPage ? "white" : "gray.200"} leftIcon={<CoreSettingsIcon />} justifyContent="flex-start" aria-current={isSettingsPage ? "page" : undefined}>تنظیمات</Button>}
       </SimpleGrid>
 
       {isOwner && (
@@ -256,7 +256,7 @@ export const Header: FC = () => {
       <Stack display={{ base: "none", lg: "flex" }} mt={6} pt={4} borderTopWidth="1px" borderColor="whiteAlpha.200" spacing={2}>
         <Text fontSize="xs" color="gray.400" px={2} noOfLines={1}>{userData?.username || "Administrator"}</Text>
         <BrandingControls theme={userData.dashboard_theme || "heisenberg"} hasLogo={Boolean(userData.logo_url)} />
-        <Button onClick={toggleColorMode} size="sm" variant="ghost" leftIcon={colorMode === "dark" ? <SunIcon width={16} /> : <MoonIcon width={16} />} justifyContent="flex-start">{colorMode === "dark" ? "Light theme" : "Dark theme"}</Button>
+        <Button color="gray.200" onClick={toggleColorMode} size="sm" variant="ghost" leftIcon={colorMode === "dark" ? <SunIcon width={16} /> : <MoonIcon width={16} />} justifyContent="flex-start">{colorMode === "dark" ? "Light theme" : "Dark theme"}</Button>
         <Button onClick={logout} size="sm" variant="ghost" color="red.200" leftIcon={<LogoutIcon />} justifyContent="flex-start" _hover={{ bg: "rgba(239, 68, 68, .14)", color: "red.100" }}>{t("header.logout")}</Button>
       </Stack>
     </Flex>

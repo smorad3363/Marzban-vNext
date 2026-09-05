@@ -5,6 +5,7 @@ services:
     env_file: .env
     network_mode: host
     volumes:
+      - /opt/marzban/.env:/opt/marzban/.env:ro
       - /var/lib/marzban:/var/lib/marzban
       - /var/lib/marzban/logs:/var/lib/marzban-node
     depends_on:

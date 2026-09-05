@@ -1,2 +1,3 @@
 *.sh text eol=lf
+marzban-cli.py text eol=lf
 app/dashboard/build/statics/*.js -whitespace

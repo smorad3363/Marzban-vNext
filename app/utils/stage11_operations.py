@@ -137,7 +137,7 @@ def decrypt_backup(source: Path, destination: Path, key_b64: str) -> None:
 def mysql_dump_command(database_url: str) -> tuple[list[str], dict[str, str], str]:
     parsed = urlparse(database_url.replace("mysql+pymysql://", "mysql://", 1))
     database = parsed.path.lstrip("/")
-    command = ["mysqldump", "--single-transaction", "--routines", "--triggers", "--hex-blob",
+    command = ["mysqldump", "--single-transaction", "--no-tablespaces", "--set-gtid-purged=OFF", "--routines", "--triggers", "--hex-blob",
                "--host", parsed.hostname or "127.0.0.1", "--port", str(parsed.port or 3306),
                "--user", unquote(parsed.username or "root"), database]
     env = os.environ.copy()

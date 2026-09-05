@@ -134,19 +134,19 @@ def test_sqlite_backup_contains_and_restores_marzhelp_data(tmp_path):
 def test_installer_targets_release_image_and_pinned_mysql_image():
     installer = Path("scripts/marzban.sh").read_text(encoding="utf-8")
 
-    assert 'MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban}"' in installer
-    assert 'MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-master}"' in installer
+    assert 'MARZBAN_GITHUB_REPO="${MARZBAN_GITHUB_REPO:-smorad3363/Marzban-vNext}"' in installer
+    assert 'MARZBAN_GITHUB_BRANCH="${MARZBAN_GITHUB_BRANCH:-vnext-ui}"' in installer
     assert 'MARZBAN_DOCKER_IMAGE="${MARZBAN_DOCKER_IMAGE:-ghcr.io/smorad3363/marzban}"' in installer
     assert 'database_type="mysql"' in installer
     assert "This Marzban build supports MySQL only" in installer
-    assert 'marzban_version="latest"' in installer
+    assert 'marzban_version="$CLI_RELEASE_VERSION"' in installer
     assert 'elif [ "$database_type" == "mysql" ]; then' in installer
     assert 'image: $(marzban_docker_image "${marzban_version}")' in installer
     assert 'MYSQL_TARGET_IMAGE="mysql:${MYSQL_TARGET_VERSION}"' in installer
     assert "image: ${MYSQL_TARGET_IMAGE}" in installer
     assert "mysql-${MYSQL_TARGET_VERSION}:/var/lib/mysql" in installer
     assert "    image: mysql:8.0\n" not in installer
-    assert 'requested_version="latest"' in installer
+    assert 'requested_version="$CLI_RELEASE_VERSION"' in installer
     assert 'previous_image=$(yq -r' in installer
     assert "for attempt in $(seq 1 150)" in installer
     assert "/code/scripts/healthcheck.py --mode internal --timeout 3" in installer

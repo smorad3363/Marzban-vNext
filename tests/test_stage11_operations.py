@@ -202,7 +202,7 @@ def test_online_restore_fails_before_any_database_or_file_mutation(monkeypatch):
     from fastapi import HTTPException
     from app.routers import backup
     monkeypatch.setattr(backup, "_owner", lambda *args: None)
-    monkeypatch.setattr(backup, "_save_upload", lambda *args: pytest.fail("upload must not be processed"))
+    monkeypatch.setattr(backup, "complete_upload", lambda *args: pytest.fail("upload must not be processed"))
     with pytest.raises(HTTPException) as error:
         backup.restore_backup("unused", backup=None, db=None, actor=None)
     assert error.value.status_code == 409

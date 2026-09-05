@@ -922,6 +922,7 @@ services:
     volumes:
       - /var/lib/marzban:/var/lib/marzban
       - /var/lib/marzban/logs:/var/lib/marzban-node
+      - /opt/marzban/.env:/opt/marzban/.env:ro
     depends_on:
       mariadb:
         condition: service_healthy
@@ -1013,9 +1014,12 @@ services:
     volumes:
       - /var/lib/marzban:/var/lib/marzban
       - /var/lib/marzban/logs:/var/lib/marzban-node
+      - /opt/marzban/.env:/opt/marzban/.env:ro
     depends_on:
       mysql:
         condition: service_healthy
+    # Read-only configuration is included in Owner backup archives.
+    # The application already receives the same values through env_file.
     healthcheck:
       test: ["CMD", "python", "/code/scripts/healthcheck.py", "--mode", "internal", "--timeout", "2"]
       start_period: 10s
@@ -1885,6 +1889,7 @@ update_command() {
     previous_image=$(yq -r '.services.marzban.image' "$COMPOSE_FILE")
     target_image=$(marzban_docker_image "$requested_version")
     yq -i ".services.marzban.image = \"${target_image}\"" "$COMPOSE_FILE"
+    yq -i '.services.marzban.volumes += ["/opt/marzban/.env:/opt/marzban/.env:ro"] | .services.marzban.volumes |= unique' "$COMPOSE_FILE"
 
     colorized_echo blue "Pulling Marzban version ${requested_version}"
     if ! update_marzban; then
