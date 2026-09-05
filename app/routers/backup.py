@@ -1,4 +1,3 @@
-import subprocess
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -85,6 +84,7 @@ def _create(db: Session, period: str) -> BackupArtifact:
     db.add(row)
     db.commit()
     db.refresh(row)
+    stage11_operations.deliver_panel_backup(db, row)
     settings = stage11_operations.backup_settings(db)
     stage11_operations.enforce_retention(spool, settings.retention_count)
     return row
@@ -103,6 +103,8 @@ def _save_upload(upload: UploadFile) -> Path:
         while chunk := upload.file.read(1024 * 1024):
             total += len(chunk)
             if total > MAX_RESTORE_BYTES:
+                target.close()
+                Path(target.name).unlink(missing_ok=True)
                 raise HTTPException(status_code=413, detail={"code": "backup_too_large", "message": "Backup exceeds 2 GiB"})
             target.write(chunk)
         return Path(target.name)
@@ -129,22 +131,10 @@ def restore_backup(
     actor: Admin = Depends(Admin.get_current),
 ):
     _owner(db, actor)
-    path = _save_upload(backup)
-    maintenance = Path(STAGE11_BACKUP_SPOOL) / ".maintenance"
-    try:
-        stage11_operations.validate_panel_backup(path)
-        digest = stage11_operations.archive_sha256(path)
-        if digest != validation_token:
-            raise HTTPException(status_code=409, detail={"code": "validation_token_mismatch", "message": "Backup differs from validated upload"})
-        _create(db, datetime.utcnow().strftime("pre-restore-%Y%m%dT%H%M%S%f"))
-        maintenance.parent.mkdir(parents=True, exist_ok=True)
-        maintenance.write_text("restore-in-progress\n", encoding="utf-8")
-        stage11_operations.restore_mysql_dump(SQLALCHEMY_DATABASE_URL, path)
-        restored_files = stage11_operations.restore_panel_files(path, PANEL_FILE_TARGETS)
-        migration = subprocess.run(["alembic", "upgrade", "head"], capture_output=True, check=False)
-        if migration.returncode != 0:
-            raise RuntimeError("post_restore_migration_failed")
-        return {"status": "RESTORED", "restored_files": restored_files, "health_check": "restart_required"}
-    finally:
-        maintenance.unlink(missing_ok=True)
-        path.unlink(missing_ok=True)
+    # A marker alone does not stop API, scheduler or node accounting writers.
+    # MySQL DDL import cannot be rolled back; fail closed until an offline
+    # orchestrator can stop every writer and validate recovery before restart.
+    raise HTTPException(status_code=409, detail={
+        "code": "offline_restore_required",
+        "message": "Stop all application writers and restore offline; online restore is disabled for data safety",
+    })

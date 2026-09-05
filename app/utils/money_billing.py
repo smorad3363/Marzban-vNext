@@ -35,6 +35,7 @@ def _settings_for_update(db: Session, admin_ids: set[int]) -> dict[int, Marzhelp
         .filter(MarzhelpAdminSettings.admin_id.in_(sorted(admin_ids)))
         .order_by(MarzhelpAdminSettings.admin_id)
         .with_for_update()
+        .populate_existing()
         .all()
     )
     result = {row.admin_id: row for row in rows}
@@ -281,7 +282,8 @@ def charge_plan_purchase(
     if buyer_settings is None or not buyer_settings.money_billing_enabled:
         return
     if BillingMode(buyer_settings.billing_mode) not in PRICED_PLAN_MODES:
-        raise admin_hierarchy.HierarchyError("plan_for_used_traffic_forbidden", "Actual-usage Admins cannot buy Plans")
+        # USED_TRAFFIC may provision from Plans, but pays only for consumption.
+        return
     operation_key = f"plan-money:{idempotency_key}"
     if db.query(AdminMoneyTransaction.id).filter(AdminMoneyTransaction.operation_key == operation_key).first():
         return
@@ -366,11 +368,12 @@ def charge_form_purchase(
     actor: Admin,
     user_id: int,
     amount_toman: int,
+    operation_key: str | None = None,
 ) -> None:
     """Charge one deterministic ALLOCATED_TRAFFIC Form purchase."""
     if admin_hierarchy.is_owner(db, buyer) or amount_toman <= 0:
         return
-    operation_key = f"form-money:create:{user_id}"
+    operation_key = operation_key or f"form-money:create:{user_id}"
     if db.query(AdminMoneyTransaction.id).filter(AdminMoneyTransaction.operation_key == operation_key).first():
         return
     settings = (
@@ -469,6 +472,8 @@ def settle_used_traffic(db: Session, usage_by_admin: dict[int, int]) -> set[int]
             AdminMoneyTransaction.operation_key == operation_key,
             AdminMoneyTransaction.admin_id.in_(sorted(deltas)),
         )
+        .with_for_update()
+        .populate_existing()
         .all()
     }
     for admin_id in sorted(deltas):

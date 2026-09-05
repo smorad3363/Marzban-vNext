@@ -635,12 +635,6 @@ def effective_plans_query(db: Session, actor: Admin):
     if (
         settings is not None
         and settings.money_billing_enabled
-        and admin_billing.billing_mode(settings) == admin_billing.BillingMode.USED_TRAFFIC
-    ):
-        return query.filter(AdminUserPlan.id == -1)
-    if (
-        settings is not None
-        and settings.money_billing_enabled
         and admin_billing.billing_mode(settings) in money_billing.PRICED_PLAN_MODES
     ):
         return query
@@ -952,6 +946,24 @@ def subscription_host_scopes(
             )
         )
         result[user.id] = version_hosts if valid else {}
+    group_ids = {user.access_group_id for user in users if user.access_group_id is not None}
+    if group_ids:
+        from app.db.models import AccessGroup, AccessGroupInbound, AccessGroupHost
+        active_groups = {row[0] for row in db.query(AccessGroup.id).filter(
+            AccessGroup.id.in_(group_ids), AccessGroup.archived_at.is_(None))}
+        group_inbounds = {group_id: set() for group_id in active_groups}
+        group_hosts = {group_id: {} for group_id in active_groups}
+        for group_id, tag in db.query(AccessGroupInbound.access_group_id, AccessGroupInbound.inbound_tag).filter(
+            AccessGroupInbound.access_group_id.in_(active_groups)):
+            group_inbounds[group_id].add(tag)
+        for group_id, tag, host_id in db.query(AccessGroupHost.access_group_id, AccessGroupHost.inbound_tag, AccessGroupHost.host_id).filter(
+            AccessGroupHost.access_group_id.in_(active_groups)):
+            group_hosts[group_id].setdefault(tag, set()).add(host_id)
+        for user in users:
+            if user.access_group_id is not None:
+                tags = group_inbounds.get(user.access_group_id, set())
+                selected = group_hosts.get(user.access_group_id, {})
+                result[user.id] = selected if tags and set(selected) == tags and all(selected.values()) else {}
     return result
 
 
@@ -1179,6 +1191,7 @@ def renew_user_from_plan(
         db.query(User)
         .filter(User.id == user.id)
         .with_for_update()
+        .populate_existing()
         .one()
     )
     replay = _assignment_replay(
@@ -1191,6 +1204,8 @@ def renew_user_from_plan(
     )
     if replay:
         return replay[0], replay[1], False
+    if access_group_id is None:
+        access_group_id = user.access_group_id
     marzhelp_policy.validate_no_active_penalty(user)
     if not admin_hierarchy.can_access_user(db, actor, user):
         raise admin_hierarchy.HierarchyError("user_scope_forbidden", "User is outside actor scope")

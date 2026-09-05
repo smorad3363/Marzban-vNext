@@ -4,10 +4,9 @@ from datetime import datetime
 from operator import attrgetter
 from typing import Union
 
-from pymysql.err import OperationalError
 from sqlalchemy import and_, bindparam, insert, select, update
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.sql.dml import Insert
 
 from app import scheduler, xray
@@ -36,7 +35,8 @@ def safe_execute(db: Session, stmt, params=None):
                 db.commit()
                 done = True
             except OperationalError as err:
-                if err.args[0] == 1213 and tries < 3:  # Deadlock
+                mysql_code = getattr(getattr(err, "orig", None), "args", (None,))[0]
+                if mysql_code in {1205, 1213} and tries < 3:
                     db.rollback()
                     tries += 1
                     continue
@@ -192,7 +192,8 @@ def record_user_usages():
                 break
             except (OperationalError, IntegrityError) as err:
                 db.rollback()
-                if tries < 3 and (isinstance(err, IntegrityError) or err.args[0] == 1213):
+                mysql_code = getattr(getattr(err, "orig", None), "args", (None,))[0]
+                if tries < 3 and (isinstance(err, IntegrityError) or mysql_code in {1205, 1213}):
                     tries += 1
                     continue
                 raise

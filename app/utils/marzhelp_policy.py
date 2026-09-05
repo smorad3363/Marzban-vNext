@@ -116,7 +116,10 @@ def validate_plan_only_direct_edit(
     target_settings = _settings(db, dbuser.admin_id)
     actor_settings = _settings(db, getattr(actor, "id", None)) if actor is not None else target_settings
     if not any(
-        settings is not None and settings.user_creation_mode_id == PLAN_ONLY_MODE_ID
+        settings is not None and (
+            settings.user_creation_mode_id == PLAN_ONLY_MODE_ID
+            or admin_billing.billing_mode(settings) == admin_billing.BillingMode.USER_CREDIT
+        )
         for settings in (target_settings, actor_settings)
     ):
         return
@@ -275,7 +278,7 @@ def _settings(db: Session, admin_id: int | None, lock: bool = False) -> Marzhelp
             return None
     query = db.query(MarzhelpAdminSettings).filter(MarzhelpAdminSettings.admin_id == admin_id)
     if lock:
-        query = query.with_for_update()
+        query = query.with_for_update().populate_existing()
     return query.first()
 
 
@@ -1272,7 +1275,36 @@ def validate_update(
     _validate_data_limit(settings, data_limit)
     _validate_subscription_mode(settings, data_limit, concurrent_user_limit)
     _validate_expiration(settings, expire, on_hold_duration)
+    if strategy.mode != admin_billing.BillingMode.LEGACY_COMPAT and not _is_effective_owner(db, actor) and (expiration_changed or modify.on_hold_expire_duration is not None):
+        from app.utils import owner_pricing
+        if expire is None:
+            if on_hold_duration:
+                if on_hold_duration % 86400:
+                    raise MarzhelpPolicyError("duration_preset_required", "Duration must use whole preset days")
+                owner_pricing.duration_days_preset(db, on_hold_duration // 86400)
+            elif not owner_pricing.get_policy(db).allow_unlimited_duration:
+                raise MarzhelpPolicyError("unlimited_duration_forbidden", "Unlimited duration requires Owner permission")
+        elif dbuser.expire and expire != dbuser.expire:
+            delta = abs(expire - dbuser.expire)
+            if delta % 86400:
+                raise MarzhelpPolicyError("duration_preset_required", "Duration change must use whole preset days")
+            owner_pricing.duration_days_preset(db, delta // 86400)
+        elif not dbuser.expire:
+            owner_pricing.duration_preset(db, expire)
     volume_delta = int(data_limit or 0) - int(old_data_limit or 0)
+    if strategy.mode == admin_billing.BillingMode.ALLOCATED_TRAFFIC and not _is_effective_owner(db, actor):
+        from app.utils import owner_pricing, money_billing
+        from uuid import uuid4
+
+        cost = owner_pricing.adjustment_price(
+            db, old_limit=old_data_limit, new_limit=data_limit,
+            old_expire=dbuser.expire, new_expire=expire,
+        )
+        buyer = db.get(Admin, dbuser.admin_id)
+        money_billing.charge_form_purchase(
+            db, buyer=buyer, actor=actor or buyer, user_id=dbuser.id,
+            amount_toman=cost, operation_key=f"form-edit:{uuid4().hex}",
+        )
     _validate_traffic_credit(
         db,
         settings,

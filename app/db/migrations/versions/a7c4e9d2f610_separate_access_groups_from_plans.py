@@ -37,18 +37,22 @@ def upgrade():
             sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
             sa.UniqueConstraint("owner_admin_id", "name", name="uq_access_groups_owner_name"),
         )
+    if "ix_access_groups_owner_active" not in {item["name"] for item in sa.inspect(bind).get_indexes("access_groups")}:
         op.create_index("ix_access_groups_owner_active", "access_groups", ["owner_admin_id", "archived_at", "id"])
+    if "access_group_inbounds" not in tables:
         op.create_table(
             "access_group_inbounds",
             sa.Column("access_group_id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), sa.ForeignKey("access_groups.id", ondelete="CASCADE"), primary_key=True),
             sa.Column("inbound_tag", sa.String(256), primary_key=True),
         )
+    if "access_group_hosts" not in tables:
         op.create_table(
             "access_group_hosts",
             sa.Column("access_group_id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), sa.ForeignKey("access_groups.id", ondelete="CASCADE"), primary_key=True),
             sa.Column("inbound_tag", sa.String(256), primary_key=True),
             sa.Column("host_id", sa.Integer(), primary_key=True),
         )
+    if "access_group_nodes" not in tables:
         op.create_table(
             "access_group_nodes",
             sa.Column("access_group_id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), sa.ForeignKey("access_groups.id", ondelete="CASCADE"), primary_key=True),
@@ -63,25 +67,25 @@ def upgrade():
             sa.Column("allow_unlimited_duration", sa.Boolean(), nullable=False, server_default=sa.false()),
             sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         )
-        bind.execute(sa.text(
-            "INSERT INTO owner_commercial_policy (id, price_per_gib_toman, allow_unlimited_duration, updated_at) "
-            "VALUES (1, 1000, 0, CURRENT_TIMESTAMP)"
-        ))
+    bind.execute(sa.text(
+        "INSERT INTO owner_commercial_policy (id, price_per_gib_toman, allow_unlimited_duration, updated_at) "
+        "SELECT 1, 1000, 0, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM owner_commercial_policy WHERE id = 1)"
+    ))
     if "owner_duration_presets" not in tables:
         op.create_table(
             "owner_duration_presets",
-            sa.Column("duration_days", sa.Integer(), primary_key=True),
+            sa.Column("duration_days", sa.Integer(), primary_key=True, autoincrement=False),
             sa.Column("multiplier_basis_points", sa.Integer(), nullable=False),
             sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
             sa.CheckConstraint("duration_days > 0", name="ck_owner_duration_positive"),
             sa.CheckConstraint("multiplier_basis_points > 0", name="ck_owner_duration_multiplier_positive"),
         )
-        for days, multiplier in ((1, 8000), (7, 9000), (30, 10000), (60, 11000)):
-            bind.execute(
-                sa.text("INSERT INTO owner_duration_presets (duration_days, multiplier_basis_points, enabled, updated_at) VALUES (:days, :multiplier, 1, CURRENT_TIMESTAMP)"),
-                {"days": days, "multiplier": multiplier},
-            )
+    for days, multiplier in ((1, 8000), (7, 9000), (30, 10000), (60, 11000)):
+        bind.execute(
+            sa.text("INSERT INTO owner_duration_presets (duration_days, multiplier_basis_points, enabled, updated_at) SELECT :days, :multiplier, 1, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM owner_duration_presets WHERE duration_days = :days)"),
+            {"days": days, "multiplier": multiplier},
+        )
 
     tables = set(sa.inspect(bind).get_table_names())
     if "backup_settings" not in tables:
@@ -103,7 +107,7 @@ def upgrade():
             sa.Column("email_to", sa.String(320), nullable=True),
             sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         )
-        bind.execute(sa.text("INSERT INTO backup_settings (id) VALUES (1)"))
+    bind.execute(sa.text("INSERT INTO backup_settings (id) SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM backup_settings WHERE id = 1)"))
 
     columns = {column["name"] for column in sa.inspect(bind).get_columns("users")}
     if "access_group_id" not in columns:
@@ -111,9 +115,11 @@ def upgrade():
             "users",
             sa.Column("access_group_id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), nullable=True),
         )
+    if "fk_users_access_group_id" not in {item["name"] for item in sa.inspect(bind).get_foreign_keys("users")}:
         op.create_foreign_key(
             "fk_users_access_group_id", "users", "access_groups", ["access_group_id"], ["id"], ondelete="SET NULL"
         )
+    if "ix_users_access_group_id" not in {item["name"] for item in sa.inspect(bind).get_indexes("users")}:
         op.create_index("ix_users_access_group_id", "users", ["access_group_id"])
 
     # Compatibility backfill: each legacy Plan version becomes a network-only group.
@@ -124,7 +130,8 @@ def upgrade():
     )).mappings().all()
     version_groups = {}
     for row in versions:
-        name = f"Migrated access: {row['name']} v{row['id']}"
+        # Keep the version identity before the truncated human-readable name.
+        name = f"Migrated access v{row['id']}: {row['name']}"[:128]
         existing_group = bind.execute(
             sa.text("SELECT id FROM access_groups WHERE owner_admin_id = :owner AND name = :name"),
             {"owner": row["owner_admin_id"], "name": name[:128]},
@@ -138,18 +145,15 @@ def upgrade():
         else:
             group_id = existing_group
         version_groups[row["id"]] = group_id
-        existing_inbounds = bind.execute(
-            sa.text("SELECT COUNT(*) FROM access_group_inbounds WHERE access_group_id = :group_id"),
-            {"group_id": group_id},
-        ).scalar()
-        if not existing_inbounds:
-            bind.execute(sa.text(
+        bind.execute(sa.text(
                 "INSERT INTO access_group_inbounds (access_group_id, inbound_tag) "
-                "SELECT :group_id, inbound_tag FROM admin_user_plan_inbounds WHERE version_id = :version_id"
+                "SELECT :group_id, i.inbound_tag FROM admin_user_plan_inbounds i WHERE i.version_id = :version_id "
+                "AND NOT EXISTS (SELECT 1 FROM access_group_inbounds g WHERE g.access_group_id = :group_id AND g.inbound_tag = i.inbound_tag)"
             ), {"group_id": group_id, "version_id": row["id"]})
-            bind.execute(sa.text(
+        bind.execute(sa.text(
                 "INSERT INTO access_group_hosts (access_group_id, inbound_tag, host_id) "
-                "SELECT :group_id, inbound_tag, host_id FROM admin_user_plan_hosts WHERE version_id = :version_id"
+                "SELECT :group_id, h.inbound_tag, h.host_id FROM admin_user_plan_hosts h WHERE h.version_id = :version_id "
+                "AND NOT EXISTS (SELECT 1 FROM access_group_hosts g WHERE g.access_group_id = :group_id AND g.inbound_tag = h.inbound_tag AND g.host_id = h.host_id)"
             ), {"group_id": group_id, "version_id": row["id"]})
 
     latest_assignments = bind.execute(sa.text(
@@ -169,8 +173,8 @@ def downgrade():
     bind = op.get_bind()
     columns = {column["name"] for column in sa.inspect(bind).get_columns("users")}
     if "access_group_id" in columns:
-        op.drop_index("ix_users_access_group_id", table_name="users")
         op.drop_constraint("fk_users_access_group_id", "users", type_="foreignkey")
+        op.drop_index("ix_users_access_group_id", table_name="users")
         op.drop_column("users", "access_group_id")
     for table in (
         "backup_settings", "owner_duration_presets", "owner_commercial_policy", "access_group_nodes",

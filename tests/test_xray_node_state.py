@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+import pytest
 
 from app.xray.node import ReSTXRayNode
 
@@ -27,5 +28,18 @@ def test_remote_stopped_probe_clears_stale_api():
     node.make_request = Mock(return_value={"started": False})
 
     assert node.started is False
+    assert node._started is False
+    assert node._api is None
+
+
+def test_failed_disconnect_still_invalidates_cached_credentials_and_api():
+    node = ReSTXRayNode.__new__(ReSTXRayNode)
+    node._session_id = "old-session"
+    node._started = True
+    node._api = Mock()
+    node.make_request = Mock(side_effect=ConnectionError("offline"))
+    with pytest.raises(ConnectionError):
+        node.disconnect()
+    assert node._session_id is None
     assert node._started is False
     assert node._api is None

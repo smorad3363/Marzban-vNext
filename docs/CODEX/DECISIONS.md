@@ -17,4 +17,6 @@ tags:
 - Admin Plan management is removed; Admins consume compact Plan summaries only in create and quick-renew workflows.
 - Checked user IDs are the sole target source for redesigned bulk operations; legacy scoped jobs remain API-compatible.
 - Panel backups use a logical MySQL dump inside a checksummed portable archive; raw MySQL directories are never the backup format.
-- Restore validates format, safe paths, and every checksum before maintenance or database mutation, and always creates a pre-restore backup.
+- Restore archives must validate format, safe paths, and every member checksum before mutation. The 2026-09-05 review disables online restore because a marker does not quiesce API/scheduler/accounting writers. Offline recovery must preserve the source and validate an isolated restore before switching.
+- ALLOCATED_TRAFFIC Form edits use the same centralized quote for preview and execution: added bytes at remaining-duration pricing, or the final allowance at the purchased extension preset. Wallet debit and user mutation share a transaction; no refund is created by an edit.
+- Explicit Access Group node selections exclude the main core and other nodes; no node selection retains legacy unrestricted placement. Enforcement covers all device-slot credentials and reconnect configuration.

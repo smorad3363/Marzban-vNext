@@ -272,6 +272,7 @@ def create_panel_backup(
         manifest_path = work / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2), encoding="utf-8")
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
+            os.chmod(archive, 0o600)
             bundle.write(manifest_path, "manifest.json")
             for source, name in copied:
                 bundle.write(source, name)
@@ -287,14 +288,34 @@ def validate_panel_backup(archive: Path) -> dict:
         raise ValueError("backup_archive_empty")
     try:
         with zipfile.ZipFile(archive) as bundle:
+            members = bundle.infolist()
             names = set(bundle.namelist())
+            if len(names) != len(members):
+                raise ValueError("backup_archive_duplicate_member")
+            if len(members) > 10000 or sum(item.file_size for item in members) > 8 * 1024**3:
+                raise ValueError("backup_archive_too_large")
+            if any(item.filename == "manifest.json" and item.file_size > 1024**2 for item in members):
+                raise ValueError("backup_manifest_too_large")
             if "manifest.json" not in names or "database.sql" not in names:
                 raise ValueError("backup_manifest_missing")
-            if any(name.startswith(("/", "\\")) or ".." in Path(name).parts for name in names):
+            if any(name.startswith(("/", "\\")) or "\\" in name or ":" in name or ".." in name.split("/") for name in names):
                 raise ValueError("backup_archive_unsafe_path")
             manifest = json.loads(bundle.read("manifest.json"))
+            if not isinstance(manifest, dict):
+                raise ValueError("backup_manifest_invalid")
             if manifest.get("format") != BACKUP_FORMAT or manifest.get("database_engine") != "mysql":
                 raise ValueError("backup_format_unsupported")
+            files = manifest.get("files")
+            if not isinstance(files, dict) or set(files) != names - {"manifest.json"}:
+                raise ValueError("backup_checksum_manifest_incomplete")
+            roots = manifest.get("restore_roots", {})
+            if not isinstance(roots, dict) or any(
+                not isinstance(root, str) or not isinstance(target, str)
+                or not root.startswith("files/") or ".." in root.split("/")
+                or "\\" in root or ":" in root
+                for root, target in roots.items()
+            ):
+                raise ValueError("backup_restore_roots_invalid")
             database_has_schema = False
             for name, expected in manifest.get("files", {}).items():
                 if name not in names:
@@ -310,7 +331,7 @@ def validate_panel_backup(archive: Path) -> dict:
             if not database_has_schema:
                 raise ValueError("backup_database_invalid")
             return manifest
-    except zipfile.BadZipFile as exc:
+    except (zipfile.BadZipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("backup_archive_invalid") from exc
 
 
@@ -338,7 +359,7 @@ def restore_mysql_dump(database_url: str, archive: Path) -> None:
 def restore_panel_files(archive: Path, allowed_targets: list[Path]) -> int:
     manifest = validate_panel_backup(archive)
     allowed = {str(path.resolve()): path.resolve() for path in allowed_targets}
-    restored = 0
+    destinations = []
     with zipfile.ZipFile(archive) as bundle:
         for archive_root, raw_target in manifest.get("restore_roots", {}).items():
             target = Path(raw_target).resolve()
@@ -347,14 +368,22 @@ def restore_panel_files(archive: Path, allowed_targets: list[Path]) -> int:
             members = [name for name in bundle.namelist() if name.startswith(archive_root + "/")]
             for name in members:
                 relative = Path(name[len(archive_root) + 1:])
-                destination = target if target.suffix and len(members) == 1 else target / relative
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                temporary = destination.with_name(destination.name + ".restore-tmp")
-                with bundle.open(name) as source, temporary.open("wb") as output:
-                    shutil.copyfileobj(source, output)
-                temporary.replace(destination)
-                restored += 1
-    return restored
+                is_file = target.is_file() or (len(members) == 1 and relative.as_posix() == target.name)
+                destination = target if is_file else target / relative
+                if not is_file and not destination.resolve().is_relative_to(target):
+                    raise ValueError("backup_restore_target_forbidden")
+                destinations.append((name, destination))
+        if len({str(destination.resolve()) for _, destination in destinations}) != len(destinations):
+            raise ValueError("backup_restore_duplicate_target")
+        # Resolve every destination before replacing even the first file.
+        for name, destination in destinations:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_name(destination.name + ".restore-tmp")
+            with bundle.open(name) as source, temporary.open("wb") as output:
+                os.chmod(temporary, 0o600)
+                shutil.copyfileobj(source, output)
+            temporary.replace(destination)
+    return len(destinations)
 
 
 def enforce_retention(spool: Path, retention_count: int) -> int:
@@ -393,6 +422,8 @@ def send_backup_email(settings: BackupSettings, archive: Path, *, max_attachment
 
 
 def telegram_parts(archive: Path, max_bytes: int) -> list[Path]:
+    if max_bytes <= 0:
+        raise ValueError("telegram_part_size_invalid")
     if archive.stat().st_size <= max_bytes:
         return [archive]
     parts = []
@@ -400,7 +431,38 @@ def telegram_parts(archive: Path, max_bytes: int) -> list[Path]:
         index = 1
         while chunk := source.read(max_bytes):
             part = archive.with_name(f"{archive.name}.part{index:03d}")
-            part.write_bytes(chunk)
+            with part.open("wb") as output:
+                os.chmod(part, 0o600)
+                output.write(chunk)
             parts.append(part)
             index += 1
     return parts
+
+
+def deliver_panel_backup(db: Session, artifact: BackupArtifact) -> None:
+    """Keep the local recovery artifact even when external delivery fails."""
+    settings = backup_settings(db)
+    archive = Path(artifact.encrypted_path)
+    try:
+        if "EMAIL" in settings.destination:
+            send_backup_email(settings, archive)
+        if "TELEGRAM" in settings.destination:
+            from telebot import TeleBot
+            from config import STAGE11_TELEGRAM_MAX_BYTES
+            bot = TeleBot(settings.telegram_bot_token, threaded=False)
+            parts = telegram_parts(archive, STAGE11_TELEGRAM_MAX_BYTES)
+            try:
+                for part in parts:
+                    with part.open("rb") as stream:
+                        bot.send_document(settings.telegram_chat_id, stream)
+            finally:
+                for part in parts:
+                    if part != archive:
+                        part.unlink(missing_ok=True)
+        artifact.delivery_status = "LOCAL" if settings.destination == "LOCAL" else "DELIVERED"
+        artifact.delivered_at = now() if artifact.delivery_status == "DELIVERED" else None
+        artifact.error_code = None
+    except Exception as exc:
+        artifact.delivery_status = "FAILED"
+        artifact.error_code = type(exc).__name__[:64]
+    db.commit()

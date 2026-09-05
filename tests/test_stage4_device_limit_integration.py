@@ -2,6 +2,8 @@ from collections import deque
 from contextlib import contextmanager
 import threading
 import time
+from unittest.mock import patch
+from app import xray
 
 from app.device_limit.engine import DeviceLimitEngine
 
@@ -16,13 +18,15 @@ class LogSource:
 
 
 def collect_payloads(tracker: DeviceLimitEngine, source: LogSource, name: str) -> None:
-    worker = threading.Thread(target=tracker._collect, args=(source, name), daemon=True)
-    worker.start()
-    deadline = time.monotonic() + 2
-    while source.payloads and time.monotonic() < deadline:
-        threading.Event().wait(0.02)
-    tracker.stop()
-    worker.join(timeout=1)
+    registered = {int(name.split(":", 1)[1]): source} if name.startswith("node:") else {}
+    with patch.dict(xray.nodes, registered):
+        worker = threading.Thread(target=tracker._collect, args=(source, name), daemon=True)
+        worker.start()
+        deadline = time.monotonic() + 2
+        while source.payloads and time.monotonic() < deadline:
+            threading.Event().wait(0.02)
+        tracker.stop()
+        worker.join(timeout=1)
     assert not source.payloads
 
 

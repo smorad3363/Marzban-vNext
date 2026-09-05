@@ -91,7 +91,7 @@ def _migration_module():
 
 
 def _assert_stage8_schema(connection: sa.Connection) -> None:
-    assert connection.scalar(sa.text("SELECT VERSION()")).startswith("8.0.")
+    assert connection.scalar(sa.text("SELECT VERSION()")).startswith(os.getenv("TEST_MYSQL_VERSION_PREFIX", "8.0."))
     create_sql = connection.execute(
         sa.text("SHOW CREATE TABLE admin_bulk_job_targets")
     ).one()[1]
@@ -234,7 +234,7 @@ def _seed_and_run_concurrently(engine: sa.Engine) -> None:
 
         pending_plan = verify.execute(
             sa.text(
-                "EXPLAIN SELECT target_id FROM admin_bulk_job_targets "
+                "EXPLAIN FORMAT=TRADITIONAL SELECT target_id FROM admin_bulk_job_targets "
                 "WHERE job_id=:job_id AND target_type='USER' "
                 "AND status='PENDING' AND retryable=1 ORDER BY sequence LIMIT 100"
             ),
@@ -245,7 +245,7 @@ def _seed_and_run_concurrently(engine: sa.Engine) -> None:
 
         report_plan = verify.execute(
             sa.text(
-                "EXPLAIN SELECT * FROM admin_bulk_job_targets "
+                "EXPLAIN FORMAT=TRADITIONAL SELECT * FROM admin_bulk_job_targets "
                 "WHERE job_id=:job_id AND sequence>:cursor ORDER BY sequence LIMIT 100"
             ),
             {"job_id": job_id, "cursor": 0},

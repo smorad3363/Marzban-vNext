@@ -67,6 +67,8 @@ def _replace_inbound_users(
 
 
 def add_user(dbuser: "DBUser"):
+    from app.utils.access_groups import user_node_scope
+    node_scope = user_node_scope(dbuser)
     user = UserResponse.model_validate(dbuser)
 
     slots = enabled_device_slots(dbuser)
@@ -102,9 +104,10 @@ def add_user(dbuser: "DBUser"):
                 ):
                     account.flow = XTLSFlows.NONE
 
-                _add_user_to_inbound(xray.api, inbound_tag, account)  # main core
-                for node in list(xray.nodes.values()):
-                    if node.connected and node.started:
+                if node_scope is None:
+                    _add_user_to_inbound(xray.api, inbound_tag, account)  # main core
+                for node_id, node in list(xray.nodes.items()):
+                    if (node_scope is None or node_id in node_scope) and node.connected and node.started:
                         _add_user_to_inbound(node.api, inbound_tag, account)
 
 
@@ -163,6 +166,8 @@ def restart_all_cores(config=None):
 def update_user(dbuser: "DBUser"):
     """Atomically replace a user's slot accounts without restarting Xray."""
 
+    from app.utils.access_groups import user_node_scope
+    node_scope = user_node_scope(dbuser)
     user = UserResponse.model_validate(dbuser)
     all_emails = tuple({
         f"{dbuser.id}.{dbuser.username}",
@@ -202,10 +207,11 @@ def update_user(dbuser: "DBUser"):
 
     for inbound_tag, accounts in accounts_by_inbound.items():
         account_tuple = tuple(accounts)
-        _replace_inbound_users(xray.api, inbound_tag, all_emails, account_tuple)
-        for node in list(xray.nodes.values()):
+        _replace_inbound_users(xray.api, inbound_tag, all_emails, account_tuple if node_scope is None else ())
+        for node_id, node in list(xray.nodes.items()):
             if node.connected and node.started:
-                _replace_inbound_users(node.api, inbound_tag, all_emails, account_tuple)
+                _replace_inbound_users(node.api, inbound_tag, all_emails,
+                                       account_tuple if node_scope is None or node_id in node_scope else ())
 
 
 def update_user_by_id(user_id: int):
@@ -238,6 +244,7 @@ def add_node(dbnode: "DBNode"):
                                      ssl_key=tls['key'],
                                      ssl_cert=tls['certificate'],
                                      usage_coefficient=dbnode.usage_coefficient)
+    xray.nodes[dbnode.id].node_id = dbnode.id
 
     return xray.nodes[dbnode.id]
 

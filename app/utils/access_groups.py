@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import object_session
 
 from app import xray
 from app.db.models import (
@@ -56,7 +57,8 @@ def _validate_scope(db: Session, values: AccessGroupInput) -> None:
     selected_hosts = {host_id for ids in values.hosts.values() for host_id in ids}
     host_rows = (
         db.query(ProxyHost.id, ProxyHost.inbound_tag)
-        .filter(ProxyHost.id.in_(selected_hosts), ProxyHost.is_legacy.is_(False))
+        .filter(ProxyHost.id.in_(selected_hosts), ProxyHost.is_legacy.is_(False),
+                ProxyHost.is_disabled.is_(False), ProxyHost.address != "")
         .all()
         if selected_hosts
         else []
@@ -159,7 +161,11 @@ def apply_to_user(db: Session, user: User, group_id: int) -> None:
             raise admin_hierarchy.HierarchyError(
                 "access_group_scope_forbidden", f"Access Group exceeds Admin scope: {sorted(forbidden)}"
             )
-    from app.utils.admin_plans import _apply_plan_network_to_user
+    from app.utils.admin_plans import _apply_plan_network_to_user, _validate_network_scope
+
+    if settings is None:
+        raise admin_hierarchy.HierarchyError("policy_missing", "Administrator policy is missing")
+    _validate_network_scope(db, settings, inbounds, hosts)
 
     _apply_plan_network_to_user(db, user, inbounds)
     user.access_group_id = group.id
@@ -201,7 +207,7 @@ def archive(db: Session, actor: Admin, group: AccessGroup) -> None:
 
 
 def host_scope(db: Session, user: User) -> dict[str, set[int]] | None:
-    if user.access_group_id is None:
+    if getattr(user, "access_group_id", None) is None:
         return None
     group = db.get(AccessGroup, user.access_group_id)
     if group is None or group.archived_at is not None:
@@ -210,6 +216,46 @@ def host_scope(db: Session, user: User) -> dict[str, set[int]] | None:
     if not inbounds or set(hosts) != inbounds or any(not hosts[tag] for tag in inbounds):
         return {}
     return hosts
+
+
+def user_node_scope(user: User) -> set[int] | None:
+    """None means unrestricted; an empty set fails closed for unavailable groups."""
+    if getattr(user, "access_group_id", None) is None:
+        return None
+    db = object_session(user)
+    if db is None:
+        return set()
+    group = db.get(AccessGroup, user.access_group_id)
+    if group is None or group.archived_at is not None:
+        return set()
+    nodes = _scope(db, group.id)[2]
+    return nodes or None
+
+
+def filter_node_config(config, node_id: int | None):
+    """Filter all device-slot credentials on startup/reconnect, not just API adds."""
+    from app.db import GetDB
+
+    with GetDB() as db:
+        rows = db.query(User.id, AccessGroup.archived_at, AccessGroupNode.node_id).join(
+            AccessGroup, User.access_group_id == AccessGroup.id
+        ).outerjoin(AccessGroupNode, AccessGroupNode.access_group_id == AccessGroup.id).all()
+    scopes = {}
+    archived = set()
+    for user_id, archived_at, selected_node in rows:
+        if archived_at is not None:
+            archived.add(user_id)
+        if selected_node is not None:
+            scopes.setdefault(user_id, set()).add(selected_node)
+    blocked = archived | {user_id for user_id, nodes in scopes.items() if node_id not in nodes}
+    result = config.copy()
+    for inbound in result.get("inbounds", []):
+        settings = inbound.get("settings", {})
+        if "clients" in settings:
+            settings["clients"] = [client for client in settings["clients"]
+                                   if not (str(client.get("email", "")).split(".", 1)[0].isdigit()
+                                           and int(str(client["email"]).split(".", 1)[0]) in blocked)]
+    return result
 
 
 def propagate_host_changes(
