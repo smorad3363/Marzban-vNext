@@ -35,7 +35,9 @@ jobs:
           grep -q 'linux/arm64' manifest.txt
           docker pull --platform linux/amd64 "$IMAGE@$DIGEST"
           test "$(docker image inspect "$IMAGE@$DIGEST" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$SOURCE_COMMIT"
-          test "$(docker run --rm --platform linux/amd64 --entrypoint python "$IMAGE@$DIGEST" -c 'from app import __version__; print(__version__)')" = 5.2.0
+          test "$(docker run --rm --platform linux/amd64 --entrypoint python \
+            -e SQLALCHEMY_DATABASE_URL=mysql+pymysql://probe:probe@127.0.0.1/probe \
+            "$IMAGE@$DIGEST" -c 'from app import __version__; print(__version__)')" = 5.2.0
           docker run --rm --platform linux/amd64 --entrypoint mysqldump "$IMAGE@$DIGEST" --version | grep -q 'Ver 26.7.0'
           docker run --rm --platform linux/amd64 --entrypoint sh "$IMAGE@$DIGEST" -c \
             "grep -q 'Upload Backup' /code/app/dashboard/build/statics/index.*.js && test -x /usr/bin/marzban-cli"
